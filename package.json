@@ -12,6 +12,7 @@
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "build:deploy": "tsx scripts/build-deploy.ts",
     "db:purge": "tsx scripts/purge-unverified.ts"
   },
   "dependencies": {
