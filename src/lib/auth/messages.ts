@@ -33,6 +33,12 @@ export const messages = {
     emailRequired: 'Informe seu e-mail.', // novo
     passwordRequired: 'Informe sua senha.', // novo
   },
+  google: {
+    wrongPasswordTitle: 'Senha incorreta',
+    wrongPasswordText: 'Confira a senha da sua conta e tente de novo.',
+    failedTitle: 'Não foi possível entrar com o Google', // novo
+    failedText: 'Tente de novo ou entre com e-mail e senha.', // novo
+  },
   verify: {
     wrongCode: (remaining: number) =>
       `Código incorreto. Você ainda tem ${remaining} ${remaining === 1 ? 'tentativa' : 'tentativas'}.`,
