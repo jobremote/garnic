@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794236701509,
+      "tag": "0000_cadastro_e_login",
+      "breakpoints": true
+    }
+  ]
+}
