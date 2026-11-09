@@ -250,6 +250,7 @@ describe('LoginForm', () => {
     expect(screen.getByLabelText('E-mail')).toHaveAttribute('type', 'email');
     expect(screen.getByLabelText('Senha')).toHaveAttribute('type', 'password');
     expect(screen.getByRole('link', { name: 'Criar conta' })).toHaveAttribute('href', '/cadastrar');
+    expect(screen.getByRole('link', { name: 'Esqueci a senha' })).toHaveAttribute('href', '/recuperar-senha');
     expect(screen.getByRole('button', { name: 'Continuar com Google' })).toBeDisabled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

@@ -24,6 +24,11 @@ export async function getSessionUser(db: Db, token: string, now = new Date()): P
   return row?.user ?? null;
 }
 
+/** Encerra todos os logins do usuário (por exemplo, depois de trocar a senha). */
+export async function deleteUserSessions(db: Db, userId: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
 export async function deleteSession(db: Db, token: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, hashSessionToken(token)));
 }

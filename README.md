@@ -6,7 +6,7 @@ As regras de produto, o PRD e as decisões ficam na pasta de gestão do projeto 
 
 ## Estado atual
 
-Primeira entrega: **cadastro por e-mail, validação por código de 6 dígitos e login**. Entram nas próximas entregas: recuperar senha, cadastro e login com Google, e o resto do MVP (perfil, estante, feed).
+Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login e recuperar senha**. Entram nas próximas: cadastro e login com Google, e o resto do MVP (perfil, estante, feed).
 
 | Rota | O que é |
 | --- | --- |
@@ -15,6 +15,9 @@ Primeira entrega: **cadastro por e-mail, validação por código de 6 dígitos e
 | `/cadastrar/validar` | Código de 6 dígitos enviado por e-mail |
 | `/cadastrar/validado` | E-mail validado |
 | `/cadastro-expirado` | Conta não validada em 24 h foi excluída |
+| `/recuperar-senha` | Esqueci a senha: pede o e-mail e envia o link |
+| `/redefinir-senha?token=…` | Criar nova senha (link de 30 minutos, uso único) |
+| `/redefinir-senha/concluida` | Senha atualizada |
 | `/termos`, `/privacidade` | Páginas provisórias (os textos ainda serão redigidos) |
 | `/` | Início provisório, só para quem está logado |
 | `/dev/emails` | Caixa de saída de desenvolvimento (só fora de produção) |
@@ -33,8 +36,8 @@ npm run dev        # http://localhost:3000
 ```
 
 - **Banco:** sem `DATABASE_URL`, o Garnic usa um Postgres embutido (PGlite) em `.data/pglite`, criado e migrado sozinho. Para começar do zero, apague a pasta `.data`.
-- **E-mail:** o código de 6 dígitos não é enviado de verdade. Ele aparece no terminal e em `http://localhost:3000/dev/emails`.
-- **Variáveis:** copie `.env.example` para `.env.local` só se precisar mudar algo. Nenhuma senha, chave ou token entra no repositório (ele é público).
+- **E-mail:** o código de 6 dígitos e o link de recuperar senha não são enviados de verdade. Eles aparecem no terminal e em `http://localhost:3000/dev/emails`.
+- **Variáveis:** copie `.env.example` para `.env.local` só se precisar mudar algo (por exemplo, `APP_URL`, se rodar em outra porta, para o link do e-mail apontar certo). Nenhuma senha, chave ou token entra no repositório (ele é público).
 
 ## Comandos
 

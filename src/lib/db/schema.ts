@@ -51,6 +51,30 @@ export const emailVerificationCodes = pgTable(
   (table) => [index('email_verification_codes_user_created_idx').on(table.userId, table.createdAt)],
 );
 
+/**
+ * Link de recuperar senha: token aleatório de uso único, 30 minutos. O e-mail leva o token; aqui fica só o hash dele.
+ * Um pedido novo invalida o anterior (`invalidatedReason = replaced`); usar o link marca `usedAt`.
+ */
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: instant('expires_at').notNull(),
+    createdAt: instant('created_at').notNull().defaultNow(),
+    usedAt: instant('used_at'),
+    invalidatedAt: instant('invalidated_at'),
+    invalidatedReason: text('invalidated_reason'),
+  },
+  (table) => [
+    uniqueIndex('password_reset_tokens_hash_key').on(table.tokenHash),
+    index('password_reset_tokens_user_created_idx').on(table.userId, table.createdAt),
+  ],
+);
+
 /** Sessão de login. O cookie leva um token aleatório; aqui fica só o hash dele. */
 export const sessions = pgTable(
   'sessions',
