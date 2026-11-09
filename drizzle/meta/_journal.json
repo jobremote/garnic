@@ -15,6 +15,13 @@
       "when": 1794242168477,
       "tag": "0001_recuperar_senha",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794243535701,
+      "tag": "0002_login_com_google",
+      "breakpoints": true
     }
   ]
 }

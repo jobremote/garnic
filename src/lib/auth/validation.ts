@@ -72,6 +72,23 @@ export function checkUsername(username: string): 'required' | 'format' | 'length
   return null;
 }
 
+/** Mensagem de erro do formato do @usuário, ou `undefined` se está válido. */
+export function usernameError(username: string): string | undefined {
+  const m = messages.signup;
+  switch (checkUsername(username)) {
+    case 'required':
+      return m.usernameRequired;
+    case 'format':
+      return m.usernameFormat;
+    case 'length':
+      return m.usernameLength;
+    case 'reserved':
+      return m.usernameReserved;
+    default:
+      return undefined;
+  }
+}
+
 export type SignupField = 'name' | 'username' | 'email' | 'password' | 'confirmPassword' | 'terms';
 export type SignupErrors = Partial<Record<SignupField, string>>;
 
@@ -98,11 +115,8 @@ export function validateSignup(input: SignupInput): SignupErrors {
   else if (name === 'names') errors.name = m.nameNames;
   else if (name === 'short') errors.name = m.nameShort;
 
-  const username = checkUsername(input.username);
-  if (username === 'required') errors.username = m.usernameRequired;
-  else if (username === 'format') errors.username = m.usernameFormat;
-  else if (username === 'length') errors.username = m.usernameLength;
-  else if (username === 'reserved') errors.username = m.usernameReserved;
+  const username = usernameError(input.username);
+  if (username) errors.username = username;
 
   const email = checkEmail(input.email);
   if (email === 'required') errors.email = m.emailRequired;

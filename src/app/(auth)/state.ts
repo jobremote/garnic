@@ -22,6 +22,22 @@ export interface LoginState {
 
 export const initialLoginState: LoginState = { email: '', failed: false, errors: {} };
 
+export interface GoogleSignupState {
+  /** Devolvido para o campo não ficar vazio depois de um erro. */
+  username: string;
+  terms: boolean;
+  errors: { username?: string; terms?: string };
+}
+
+export const initialGoogleSignupState: GoogleSignupState = { username: '', terms: false, errors: {} };
+
+export interface LinkGoogleState {
+  /** Senha da conta incorreta (banner). */
+  failed: boolean;
+}
+
+export const initialLinkGoogleState: LinkGoogleState = { failed: false };
+
 export interface RequestResetState {
   /** `form`: pedindo o link. `sent`: "Verifique seu e-mail". */
   status: 'form' | 'sent';

@@ -6,7 +6,7 @@ As regras de produto, o PRD e as decisões ficam na pasta de gestão do projeto 
 
 ## Estado atual
 
-Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login e recuperar senha**. Entram nas próximas: cadastro e login com Google, e o resto do MVP (perfil, estante, feed).
+Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login, recuperar senha e login e cadastro com Google**. Entra nas próximas o resto do MVP (perfil, estante, feed).
 
 | Rota | O que é |
 | --- | --- |
@@ -15,6 +15,11 @@ Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, l
 | `/cadastrar/validar` | Código de 6 dígitos enviado por e-mail |
 | `/cadastrar/validado` | E-mail validado |
 | `/cadastro-expirado` | Conta não validada em 24 h foi excluída |
+| `/cadastrar/google` | Quem entrou com o Google (e-mail novo) escolhe o @usuário |
+| `/entrar/vincular-google` | E-mail do Google já tem conta: confirma a senha para vincular |
+| `/entrar/erro-google` | Não foi possível entrar com o Google |
+| `/api/auth/google` e `/api/auth/google/callback` | Início e volta do OAuth do Google |
+| `/dev/google` | Google simulado (só em desenvolvimento, sem credenciais) |
 | `/recuperar-senha` | Esqueci a senha: pede o e-mail e envia o link |
 | `/redefinir-senha?token=…` | Criar nova senha (link de 30 minutos, uso único) |
 | `/redefinir-senha/concluida` | Senha atualizada |
@@ -38,6 +43,17 @@ npm run dev        # http://localhost:3000
 - **Banco:** sem `DATABASE_URL`, o Garnic usa um Postgres embutido (PGlite) em `.data/pglite`, criado e migrado sozinho. Para começar do zero, apague a pasta `.data`.
 - **E-mail:** o código de 6 dígitos e o link de recuperar senha não são enviados de verdade. Eles aparecem no terminal e em `http://localhost:3000/dev/emails`.
 - **Variáveis:** copie `.env.example` para `.env.local` só se precisar mudar algo (por exemplo, `APP_URL`, se rodar em outra porta, para o link do e-mail apontar certo). Nenhuma senha, chave ou token entra no repositório (ele é público).
+
+## Login com Google
+
+Sem credenciais, em desenvolvimento, o botão do Google leva a uma tela local (`/dev/google`) que simula o Google: dá para testar cadastro, login e vínculo sem conta no Google Cloud. Para usar o Google de verdade:
+
+1. No [Google Cloud Console](https://console.cloud.google.com/), crie um projeto (ou use um existente).
+2. Em **APIs e serviços > Tela de permissão OAuth**, configure o app (tipo **Externo**, nome, e-mail de suporte; em teste, adicione seu e-mail como usuário de teste). Os escopos são só `openid`, `email` e `profile`.
+3. Em **APIs e serviços > Credenciais > Criar credenciais > ID do cliente OAuth**, escolha **Aplicativo da Web** e cadastre o **URI de redirecionamento autorizado**: `http://localhost:3000/api/auth/google/callback` (e, quando houver, o de homologação e o de produção, no mesmo formato, com o endereço de cada ambiente).
+4. Copie o ID do cliente e a chave secreta para o `.env.local` (`GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`) e defina `APP_URL` com o mesmo endereço usado no passo 3. Reinicie o servidor.
+
+A chave secreta nunca vai para o repositório (ele é público); nos ambientes publicados ela fica só nas configurações do ambiente.
 
 ## Comandos
 

@@ -75,6 +75,27 @@ export const passwordResetTokens = pgTable(
   ],
 );
 
+/**
+ * Contas de login externas (Google). Uma conta do Google (`provider_account_id` = o `sub` dela) pertence a um só
+ * usuário; um usuário pode entrar por Google e por e-mail e senha.
+ */
+export const oauthAccounts = pgTable(
+  'oauth_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('oauth_accounts_provider_account_key').on(table.provider, table.providerAccountId),
+    index('oauth_accounts_user_idx').on(table.userId),
+  ],
+);
+
 /** Sessão de login. O cookie leva um token aleatório; aqui fica só o hash dele. */
 export const sessions = pgTable(
   'sessions',
