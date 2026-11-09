@@ -95,3 +95,9 @@ O Garnic só **consome** o NogasDS (`jobremote/nogasds`), instalado por tag do G
 ## Esteira
 
 Branch própria, pull request para `develop` (homologação), pull request para `main` (produção, com aprovação). O CI roda em todo pull request. Segredos ficam só nas configurações de cada ambiente.
+
+## Publicação (Vercel e Neon)
+
+- `develop` é a homologação e `main` é a produção; as duas rodam as migrações do Neon no build (`npm run build:deploy`). Pull requests só geram o build.
+- Variáveis de cada ambiente (veja `.env.example`): `AUTH_SECRET`, `DATABASE_URL`, `EMAIL_PROVIDER`, `APP_URL`, `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
+- Na Vercel o app roda como produção: o Google simulado (`/dev/google`) não existe e as variáveis acima são obrigatórias. Na homologação, `EMAIL_PROVIDER=dev` mostra os e-mails em `/dev/emails`.
