@@ -1,41 +1,13 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useState } from 'react';
 import { Banner, Button, CodeField } from 'nogasds';
 import { messages } from '@/lib/auth/messages';
 import { verifyAction } from '../actions';
 import type { VerifyState } from '../state';
 import styles from '../auth.module.css';
 import { AuthHeader } from './auth-parts';
-
-const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-
-/** Botão de reenvio com a contagem de 60 s. Remontado a cada resposta do servidor (key), então reinicia sozinho. */
-function ResendButton({
-  initialSeconds,
-  limitReached,
-  variant,
-  label,
-}: {
-  initialSeconds: number;
-  limitReached: boolean;
-  variant: 'outline' | 'primary';
-  label: string;
-}) {
-  const [left, setLeft] = useState(initialSeconds);
-  useEffect(() => {
-    if (left <= 0) return;
-    const id = setTimeout(() => setLeft((seconds) => seconds - 1), 1000);
-    return () => clearTimeout(id);
-  }, [left]);
-
-  const waiting = left > 0;
-  return (
-    <Button type="submit" name="intent" value="resend" variant={variant} disabled={waiting || limitReached} formNoValidate>
-      {waiting ? `${label} em ${clock(left)}` : label}
-    </Button>
-  );
-}
+import { ResendButton } from './ResendButton';
 
 export function VerifyForm({ email, initialState }: { email: string; initialState: VerifyState }) {
   const [state, formAction, pending] = useActionState(verifyAction, initialState);
@@ -90,8 +62,10 @@ export function VerifyForm({ email, initialState }: { email: string; initialStat
         {invalidated || expired ? null : <p className={styles.centerText}>Não recebeu o código?</p>}
         <ResendButton
           key={state.nonce}
+          name="intent"
+          value="resend"
           initialSeconds={state.resendInSeconds}
-          limitReached={state.limitReached}
+          blocked={state.limitReached}
           variant={invalidated ? 'primary' : 'outline'}
           label={invalidated || expired ? 'Enviar novo código' : 'Reenviar código'}
         />

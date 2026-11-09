@@ -41,10 +41,7 @@ export function LoginForm() {
         error={state.errors.password}
       />
       <div className={styles.alignEnd}>
-        {/* A recuperação de senha é uma entrega à parte; até lá o link fica desabilitado. */}
-        <Link href="/recuperar-senha" disabled>
-          Esqueci a senha
-        </Link>
+        <Link href="/recuperar-senha">Esqueci a senha</Link>
       </div>
 
       <Button type="submit" disabled={pending}>

@@ -8,6 +8,13 @@
       "when": 1794236701509,
       "tag": "0000_cadastro_e_login",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794242168477,
+      "tag": "0001_recuperar_senha",
+      "breakpoints": true
     }
   ]
 }

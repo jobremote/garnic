@@ -1,15 +1,13 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { readPendingUserId } from '@/lib/auth/cookies';
 import { findUserById, isSignupExpired } from '@/lib/auth/users';
 import { getDb } from '@/lib/db';
-import { devMailboxEnabled } from '@/lib/email/mailer';
+import { DevMailboxHint } from '../../_components/DevMailboxHint';
 import { VerifyForm } from '../../_components/VerifyForm';
 import { buildVerifyState } from '../../verify-state';
-import styles from '../../auth.module.css';
 
 export const metadata: Metadata = { title: 'Valide seu e-mail' };
 
@@ -27,11 +25,7 @@ async function VerifyContent() {
   return (
     <>
       <VerifyForm email={user.email} initialState={await buildVerifyState(db, user.id)} />
-      {devMailboxEnabled() ? (
-        <p className={styles.hint}>
-          Ambiente de desenvolvimento: o código chega na <Link href="/dev/emails">caixa de saída</Link>.
-        </p>
-      ) : null}
+      <DevMailboxHint what="o código" />
     </>
   );
 }

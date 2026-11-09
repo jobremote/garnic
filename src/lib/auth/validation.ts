@@ -104,20 +104,44 @@ export function validateSignup(input: SignupInput): SignupErrors {
   else if (username === 'length') errors.username = m.usernameLength;
   else if (username === 'reserved') errors.username = m.usernameReserved;
 
-  const email = normalizeEmail(input.email);
-  if (email === '') errors.email = m.emailRequired;
-  else if (email.length > EMAIL_MAX || !emailSchema.safeParse(email).success) errors.email = m.emailInvalid;
+  const email = checkEmail(input.email);
+  if (email === 'required') errors.email = m.emailRequired;
+  else if (email === 'invalid') errors.email = m.emailInvalid;
 
-  if (input.password === '') {
+  Object.assign(
+    errors,
+    validateNewPassword(input.password, input.confirmPassword, { username: input.username, email: normalizeEmail(input.email) }),
+  );
+  if (!input.acceptedTerms) errors.terms = m.termsRequired;
+  return errors;
+}
+
+/** E-mail: obrigatório e com formato válido (até 254 caracteres). */
+export function checkEmail(input: string): 'required' | 'invalid' | null {
+  const email = normalizeEmail(input);
+  if (email === '') return 'required';
+  return email.length > EMAIL_MAX || !emailSchema.safeParse(email).success ? 'invalid' : null;
+}
+
+/**
+ * Senha nova + repetir senha (cadastro e recuperar senha): uma mensagem por campo.
+ * "Repetir senha" só é cobrado quando a senha em si é válida.
+ */
+export function validateNewPassword(
+  password: string,
+  confirmPassword: string,
+  identity: { username?: string; email?: string } = {},
+): { password?: string; confirmPassword?: string } {
+  const m = messages.signup;
+  const errors: { password?: string; confirmPassword?: string } = {};
+  if (password === '') {
     errors.password = m.passwordRequired;
   } else {
-    const problem = checkPassword(input.password, { username: input.username, email });
+    const problem = checkPassword(password, identity);
     if (problem === 'weak') errors.password = m.passwordWeak;
     else if (problem === 'common') errors.password = m.passwordCommon;
     else if (problem === 'same_as_identity') errors.password = m.passwordSameAsIdentity;
   }
-
-  if (!errors.password && input.confirmPassword !== input.password) errors.confirmPassword = m.confirmMismatch;
-  if (!input.acceptedTerms) errors.terms = m.termsRequired;
+  if (!errors.password && confirmPassword !== password) errors.confirmPassword = m.confirmMismatch;
   return errors;
 }
