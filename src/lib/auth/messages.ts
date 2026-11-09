@@ -6,6 +6,10 @@
 export const messages = {
   signup: {
     nameRequired: 'Informe seu nome completo.', // novo
+    nameNames: 'Informe nome e sobrenome.', // novo
+    nameShort: 'Cada nome precisa de pelo menos 2 letras.', // novo
+    nameChars: 'Use só letras, espaço, hífen e apóstrofo.', // novo
+    nameLong: 'Use no máximo 100 caracteres.', // novo
     usernameRequired: 'Escolha um @usuário.', // novo
     usernameFormat: 'Use só letras minúsculas, números, ponto e underline.',
     usernameLength: 'Use de 3 a 20 caracteres.', // novo
