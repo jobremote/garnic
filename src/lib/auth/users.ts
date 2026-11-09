@@ -3,7 +3,7 @@ import type { Db } from '@/lib/db/connect';
 import { users, type User } from '@/lib/db/schema';
 import { dummyPasswordHash, hashPassword, verifyPassword } from './crypto';
 import { messages } from './messages';
-import { normalizeEmail, validateSignup, type SignupErrors, type SignupInput } from './validation';
+import { normalizeEmail, normalizeName, validateSignup, type SignupErrors, type SignupInput } from './validation';
 import { issueCode } from './verification';
 
 /** Conta não validada é excluída após 24 h. */
@@ -49,7 +49,7 @@ export async function registerUser(db: Db, input: SignupInput, now = new Date())
   try {
     [created] = await db
       .insert(users)
-      .values({ name: input.name.trim(), username, email, passwordHash, termsAcceptedAt: now, createdAt: now })
+      .values({ name: normalizeName(input.name), username, email, passwordHash, termsAcceptedAt: now, createdAt: now })
       .returning({ id: users.id, name: users.name, email: users.email });
   } catch (error) {
     // Duas pessoas cadastrando o mesmo dado ao mesmo tempo: o índice único decide.
@@ -74,6 +74,13 @@ export async function authenticate(db: Db, emailInput: string, password: string)
   const valid = await verifyPassword(password, user?.passwordHash ?? (await dummyPasswordHash()));
   if (!user || !valid || !user.emailVerifiedAt) return null;
   return user;
+}
+
+/** O @usuário já está em uso? Contas não validadas e vencidas (24 h) liberam o nome antes da conferência. */
+export async function isUsernameTaken(db: Db, username: string, now = new Date()): Promise<boolean> {
+  await purgeUnverifiedUsers(db, now);
+  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);
+  return Boolean(row);
 }
 
 export async function findUserById(db: Db, id: string): Promise<User | null> {

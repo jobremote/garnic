@@ -5,7 +5,7 @@ import { emailVerificationCodes, users } from '@/lib/db/schema';
 import { createTestDb, validSignup } from '@/test/db';
 import { messages } from './messages';
 import { createSession, deleteSession, getSessionUser, SESSION_TTL_MS } from './sessions';
-import { authenticate, purgeUnverifiedUsers, registerUser, UNVERIFIED_TTL_MS } from './users';
+import { authenticate, isUsernameTaken, purgeUnverifiedUsers, registerUser, UNVERIFIED_TTL_MS } from './users';
 import { getVerificationState, issueCode, verifyCode } from './verification';
 
 const T0 = new Date('2026-11-09T12:00:00.000Z');
@@ -46,6 +46,22 @@ describe('cadastro por e-mail', () => {
     const [row] = await db.select().from(emailVerificationCodes).where(eq(emailVerificationCodes.userId, user.id));
     expect(row.codeHash).not.toContain(result.code);
     expect(row.expiresAt).toEqual(after(T0, 10 * MIN));
+  });
+
+  it('guarda o nome sem espaços sobrando e recusa nome sem sobrenome', async () => {
+    const result = await newAccount(T0, { name: '  Maria   da  Silva ' });
+    const [row] = await db.select().from(users).where(eq(users.id, result.user.id));
+    expect(row.name).toBe('Maria da Silva');
+
+    const only = await registerUser(db, { ...validSignup, username: 'so.um.nome', email: 'so.um.nome@email.com', name: 'Maria' }, T0);
+    expect(only).toEqual({ ok: false, errors: { name: messages.signup.nameNames } });
+  });
+
+  it('isUsernameTaken diz se o @usuário está em uso e libera o de conta vencida', async () => {
+    await newAccount(T0, { username: 'checagem.viva', email: 'checagem.viva@email.com' });
+    expect(await isUsernameTaken(db, 'checagem.viva', after(T0, MIN))).toBe(true);
+    expect(await isUsernameTaken(db, 'livre.agora', after(T0, MIN))).toBe(false);
+    expect(await isUsernameTaken(db, 'checagem.viva', after(T0, UNVERIFIED_TTL_MS + MIN))).toBe(false);
   });
 
   it('normaliza o e-mail para minúsculas', async () => {

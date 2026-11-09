@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { messages } from './messages';
-import { checkPassword, checkUsername, validateSignup, type SignupInput } from './validation';
+import { checkName, checkPassword, checkUsername, normalizeName, validateSignup, type SignupInput } from './validation';
 
 const valid: SignupInput = {
   name: 'Ana Souza',
@@ -28,6 +28,45 @@ describe('@usuário', () => {
   it('bloqueia nomes reservados e vazio', () => {
     for (const reserved of ['admin', 'garnic', 'suporte']) expect(checkUsername(reserved)).toBe('reserved');
     expect(checkUsername('')).toBe('required');
+  });
+});
+
+describe('nome completo', () => {
+  it('aceita nome e sobrenome, com acento, hífen e apóstrofo', () => {
+    for (const ok of ['Ana Souza', 'João da Silva', 'Anne-Marie Dubois', "Luiza D'Ávila", 'Jo Wu', 'Ana Li', 'Maria de Fátima Souza', 'José Ângelo']) {
+      expect(checkName(ok), ok).toBeNull();
+    }
+  });
+
+  it('exige pelo menos dois nomes; as partículas não contam', () => {
+    for (const bad of ['Ana', 'João', 'da Silva', 'de da', 'Ana e', 'Ana de']) expect(checkName(bad), bad).toBe('names');
+  });
+
+  it('exige pelo menos 2 letras em cada nome (as partículas ficam de fora)', () => {
+    for (const bad of ['Ana L', 'A Souza', 'Ana S Souza']) expect(checkName(bad), bad).toBe('short');
+    expect(checkName('Maria da Silva')).toBeNull(); // "da" tem 2 letras e não é nome
+  });
+
+  it('recusa números e símbolos', () => {
+    for (const bad of ['Ana Souza!', 'Ana 2 Souza', 'Ana@Souza', 'Ana Souza#', 'Ana_Souza', 'Ana. Souza', '-Ana Souza', 'Ana Souza-']) {
+      expect(checkName(bad), bad).toBe('chars');
+    }
+  });
+
+  it('ignora espaços sobrando e recusa vazio e mais de 100 caracteres', () => {
+    expect(checkName('   Ana     Souza  ')).toBeNull();
+    expect(normalizeName('   Ana     Souza  ')).toBe('Ana Souza');
+    expect(checkName('   ')).toBe('required');
+    expect(checkName(`${'a'.repeat(60)} ${'b'.repeat(60)}`)).toBe('long');
+  });
+
+  it('o cadastro devolve a mensagem certa para cada caso', () => {
+    const input = { ...valid };
+    expect(validateSignup({ ...input, name: 'Ana' }).name).toBe(messages.signup.nameNames);
+    expect(validateSignup({ ...input, name: 'Ana L' }).name).toBe(messages.signup.nameShort);
+    expect(validateSignup({ ...input, name: 'Ana Souza!' }).name).toBe(messages.signup.nameChars);
+    expect(validateSignup({ ...input, name: '' }).name).toBe(messages.signup.nameRequired);
+    expect(validateSignup({ ...input, name: 'Ana Souza' }).name).toBeUndefined();
   });
 });
 
@@ -80,7 +119,7 @@ describe('cadastro', () => {
     expect(validateSignup({ ...valid, password: 'fraca', confirmPassword: 'diferente' }).confirmPassword).toBeUndefined();
   });
 
-  it('exige nome e e-mail', () => {
+  it('exige nome completo e e-mail', () => {
     const errors = validateSignup({ ...valid, name: '  ', email: '' });
     expect(errors.name).toBe(messages.signup.nameRequired);
     expect(errors.email).toBe(messages.signup.emailRequired);

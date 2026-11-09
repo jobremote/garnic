@@ -16,6 +16,34 @@ const USERNAME_PATTERN = /^[a-z0-9._]+$/;
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
+/** Aparas e espaços repetidos viram um só: "  Ana   Souza " vira "Ana Souza". */
+export const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ');
+
+/** Partículas que podem aparecer no meio de um nome e que não contam como nome ("Maria da Silva"). */
+const NAME_PARTICLES: ReadonlySet<string> = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const NAME_MIN_LETTERS = 2;
+const NAME_MIN_WORDS = 2;
+/** Uma palavra do nome: letras (com acento), com hífen ou apóstrofo só entre letras ("Anne-Marie", "D'Ávila"). */
+const NAME_WORD = /^\p{L}+(?:['’-]\p{L}+)*$/u;
+
+/**
+ * Nome completo: nome e sobrenome (pelo menos 2 nomes, cada um com pelo menos 2 letras). As partículas
+ * (de, da, do, das, dos, e) são liberadas e não contam. Só letras, espaço, hífen e apóstrofo; até 100 caracteres.
+ */
+export function checkName(input: string): 'required' | 'long' | 'chars' | 'names' | 'short' | null {
+  const name = normalizeName(input);
+  if (name === '') return 'required';
+  if (name.length > NAME_MAX) return 'long';
+
+  const words = name.split(' ');
+  if (!words.every((word) => NAME_WORD.test(word))) return 'chars';
+
+  const names = words.filter((word) => !NAME_PARTICLES.has(word.toLowerCase()));
+  if (names.length < NAME_MIN_WORDS) return 'names';
+  if (names.some((word) => word.replace(/['’-]/g, '').length < NAME_MIN_LETTERS)) return 'short';
+  return null;
+}
+
 export type PasswordProblem = 'weak' | 'common' | 'same_as_identity';
 
 /** Mínimo de 8 caracteres, com maiúscula, minúscula, número e caractere especial; bloqueia senhas comuns e igual ao @usuário ou e-mail. */
@@ -63,8 +91,12 @@ export function validateSignup(input: SignupInput): SignupErrors {
   const errors: SignupErrors = {};
   const m = messages.signup;
 
-  const name = input.name.trim();
-  if (name === '' || name.length > NAME_MAX) errors.name = m.nameRequired;
+  const name = checkName(input.name);
+  if (name === 'required') errors.name = m.nameRequired;
+  else if (name === 'long') errors.name = m.nameLong;
+  else if (name === 'chars') errors.name = m.nameChars;
+  else if (name === 'names') errors.name = m.nameNames;
+  else if (name === 'short') errors.name = m.nameShort;
 
   const username = checkUsername(input.username);
   if (username === 'required') errors.username = m.usernameRequired;

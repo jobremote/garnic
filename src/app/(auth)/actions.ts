@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import { clearPendingCookie, clearSessionCookie, readPendingUserId, readSessionToken, setPendingCookie, setSessionCookie } from '@/lib/auth/cookies';
 import { messages } from '@/lib/auth/messages';
 import { createSession, deleteSession } from '@/lib/auth/sessions';
-import { authenticate, findUserById, isSignupExpired, purgeUnverifiedUsers, registerUser } from '@/lib/auth/users';
+import { authenticate, findUserById, isSignupExpired, isUsernameTaken, purgeUnverifiedUsers, registerUser } from '@/lib/auth/users';
+import { checkUsername } from '@/lib/auth/validation';
 import { issueCode, verifyCode } from '@/lib/auth/verification';
 import { getDb } from '@/lib/db';
 import { sendEmail } from '@/lib/email/mailer';
@@ -40,6 +41,15 @@ export async function signupAction(_previous: SignupState, data: FormData): Prom
   await sendEmail(db, verificationEmail({ name: result.user.name, email: result.user.email, code: result.code }));
   await setPendingCookie(result.user.id);
   redirect('/cadastrar/validar');
+}
+
+/**
+ * O @usuário já está em uso? Chamada quando a pessoa sai do campo. O @usuário é público (os perfis são públicos),
+ * então esta consulta é segura; já o e-mail só é conferido no envio do cadastro, para ninguém descobrir quem tem conta.
+ */
+export async function checkUsernameTakenAction(username: string): Promise<boolean> {
+  if (typeof username !== 'string' || checkUsername(username) !== null) return false;
+  return isUsernameTaken(await getDb(), username);
 }
 
 /** Login com e-mail e senha. Qualquer falha mostra a mesma mensagem, sem dizer qual dado errou. */
