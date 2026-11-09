@@ -1,0 +1,34 @@
+name: CI
+
+# Verificação de todo pull request e de todo push na main e na develop (esteira em
+# 05_tecnico/arquitetura/stack-e-esteira.md): lint, tipos, testes e build.
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Lint, tipos, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # O npm grava o NogasDS (repositório público) com endereço SSH no package-lock.json.
+      # O runner não tem chave SSH, então o SSH do GitHub é redirecionado para HTTPS.
+      - name: Instalar dependências do GitHub por HTTPS
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          # Só para o build; nada de segredo real no repositório.
+          AUTH_SECRET: segredo-de-build-do-ci-com-mais-de-trinta-e-dois-caracteres

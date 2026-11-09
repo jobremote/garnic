@@ -1,0 +1,151 @@
+/*
+ * Telas de login e cadastro: layout de tela dividida do protótipo ("Login e cadastro" no Figma).
+ * Desktop 1440: painel do formulário (656) + painel da marca (784). Mobile 390: coluna única.
+ * Só tokens semânticos do NogasDS; nenhum valor solto, exceto a largura de 400 do formulário.
+ */
+.shell {
+  display: grid;
+  grid-template-columns: 656fr 784fr;
+  min-height: 100dvh;
+  background: var(--nds-surface-base);
+}
+
+.formPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--nds-space-inset-4xl) var(--nds-space-inset-xl);
+}
+
+.content {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Fixo na altura da janela: a frase fica no rodapé da tela mesmo quando o formulário é mais alto. */
+.brandPanel {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100dvh;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--nds-space-inset-4xl);
+  background: var(--nds-surface-raised);
+}
+
+.brandText {
+  margin: 0;
+  font: var(--nds-type-headline);
+  letter-spacing: var(--nds-type-headline-tracking);
+  color: var(--nds-text-primary);
+}
+
+/* Mobile: coluna única, sem painel da marca. */
+@media (max-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .formPanel {
+    align-items: flex-start;
+    padding: var(--nds-space-inset-3xl) var(--nds-space-inset-xl) var(--nds-space-inset-2xl);
+  }
+  .brandPanel {
+    display: none;
+  }
+}
+
+/* Formulário e blocos */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-xl);
+  margin: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+}
+
+.brand {
+  margin: 0;
+  font: var(--nds-type-headline);
+  letter-spacing: -0.02em;
+  color: var(--nds-text-primary);
+}
+
+.title {
+  margin: 0;
+  font: var(--nds-type-lead);
+  letter-spacing: var(--nds-type-lead-tracking);
+  color: var(--nds-text-primary);
+}
+
+.description {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--nds-space-gap-lg);
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-muted);
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: var(--nds-stroke-default);
+  background: var(--nds-border-subtle);
+}
+
+.alignEnd {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nds-space-gap-xs);
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+.hint {
+  margin: 0;
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-muted);
+}
+
+.successMark {
+  display: flex;
+  align-items: center;
+  gap: var(--nds-space-gap-md);
+  color: var(--nds-status-success-fg);
+  font: var(--nds-type-lead);
+  letter-spacing: var(--nds-type-lead-tracking);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+}
+
+.centerText {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}

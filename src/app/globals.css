@@ -1,0 +1,21 @@
+/* Base do Garnic. Tudo que não é layout vem do NogasDS (tokens semânticos `--nds-*`). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--nds-surface-base);
+  color: var(--nds-text-primary);
+  font-family: var(--nds-font-family);
+  font: var(--nds-type-body);
+  letter-spacing: var(--nds-type-body-tracking);
+  -webkit-font-smoothing: antialiased;
+}
