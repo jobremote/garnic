@@ -18,6 +18,12 @@ export const users = pgTable(
     emailVerifiedAt: instant('email_verified_at'),
     /** Última troca de @usuário: a troca só é permitida uma vez a cada 30 dias. */
     usernameChangedAt: instant('username_changed_at'),
+    /** Bio do perfil: só texto, até 160 caracteres. */
+    bio: text('bio'),
+    /** Chave da imagem de avatar no armazenamento (`avatars/<uuid>.jpg`). Nulo: avatar com a inicial do nome. */
+    avatarKey: text('avatar_key'),
+    /** Chave da imagem de capa no armazenamento (`covers/<uuid>.jpg`). Nulo: capa de cor sólida. */
+    coverKey: text('cover_key'),
     termsAcceptedAt: instant('terms_accepted_at').notNull(),
     createdAt: instant('created_at').notNull().defaultNow(),
   },
@@ -26,6 +32,27 @@ export const users = pgTable(
     uniqueIndex('users_email_key').on(table.email),
     index('users_unverified_created_idx').on(table.emailVerifiedAt, table.createdAt),
   ],
+);
+
+/**
+ * Histórico interno de nome e @usuário (decisão de 10/11/2026). Uma linha por troca, mais uma linha inicial no
+ * cadastro (`oldValue` nulo). Não aparece em nenhuma tela: serve à moderação e à regra de uma troca de nome a cada
+ * 60 dias (a última troca vem daqui). Sai junto com a conta (cascata) até a política de retenção ser definida.
+ */
+export const profileNameChanges = pgTable(
+  'profile_name_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** `name` ou `username`. */
+    field: text('field').notNull(),
+    oldValue: text('old_value'),
+    newValue: text('new_value').notNull(),
+    changedAt: instant('changed_at').notNull().defaultNow(),
+  },
+  (table) => [index('profile_name_changes_user_field_idx').on(table.userId, table.field, table.changedAt)],
 );
 
 /**

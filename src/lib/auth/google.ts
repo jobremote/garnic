@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { oauthAccounts, users, type User } from '@/lib/db/schema';
 import { dummyPasswordHash, verifyPassword } from './crypto';
+import { recordInitialNames } from '@/lib/profile/history';
 import { messages } from './messages';
 import { isUsernameTaken } from './users';
 import { normalizeEmail, normalizeName, NAME_MAX, usernameError } from './validation';
@@ -119,6 +120,7 @@ export async function completeGoogleSignup(
     throw error;
   }
   await db.insert(oauthAccounts).values({ userId: user.id, provider: GOOGLE, providerAccountId: profile.sub, createdAt: now });
+  await recordInitialNames(db, user, now);
   return { ok: true, user };
 }
 

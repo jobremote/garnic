@@ -2,6 +2,7 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { users, type User } from '@/lib/db/schema';
 import { dummyPasswordHash, hashPassword, verifyPassword } from './crypto';
+import { recordInitialNames } from '@/lib/profile/history';
 import { messages } from './messages';
 import { normalizeEmail, normalizeName, validateSignup, type SignupErrors, type SignupInput } from './validation';
 import { issueCode } from './verification';
@@ -59,6 +60,7 @@ export async function registerUser(db: Db, input: SignupInput, now = new Date())
     throw error;
   }
 
+  await recordInitialNames(db, { id: created.id, name: created.name, username }, now);
   const issued = await issueCode(db, created.id, now);
   if (!issued.ok) throw new Error('Não foi possível gerar o primeiro código de validação.');
   return { ok: true, user: created, code: issued.code, resendAvailableAt: issued.resendAvailableAt };

@@ -10,6 +10,7 @@ export interface CurrentUser {
   name: string;
   username: string;
   email: string;
+  avatarKey: string | null;
 }
 
 /** Usuário da sessão atual, ou `null`. Lê o cookie: use dentro de um `<Suspense>`. */
@@ -18,5 +19,5 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const token = await readSessionToken();
   if (!token) return null;
   const user = await getSessionUser(await getDb(), token);
-  return user && { id: user.id, name: user.name, username: user.username, email: user.email };
+  return user && { id: user.id, name: user.name, username: user.username, email: user.email, avatarKey: user.avatarKey };
 }

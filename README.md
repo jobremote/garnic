@@ -6,7 +6,7 @@ As regras de produto, o PRD e as decisões ficam na pasta de gestão do projeto 
 
 ## Estado atual
 
-Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login, recuperar senha e login e cadastro com Google**. Entra nas próximas o resto do MVP (perfil, estante, feed).
+Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login, recuperar senha, login e cadastro com Google e o Perfil** (ver, editar nome, @usuário e bio, trocar e remover avatar e capa; nome troca a cada 60 dias, @usuário a cada 30, com histórico interno). No perfil, Seguir, Denunciar, o botão "+" do Game Shelf e os posts são só visuais (blocos Gameshelf e Feed). As imagens ficam no **Vercel Blob** (homologação e produção; o navegador envia direto ao Blob, por causa do limite de 4,5 MB das funções da Vercel) ou, em desenvolvimento sem token, em disco local (`.data/uploads`). Sem o Blob configurado num ambiente publicado, o envio de imagem fica desabilitado, com aviso na tela. Entra nas próximas o resto do MVP (Game Shelf, feed).
 
 | Rota | O que é |
 | --- | --- |
@@ -24,6 +24,10 @@ Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, l
 | `/redefinir-senha?token=…` | Criar nova senha (link de 30 minutos, uso único) |
 | `/redefinir-senha/concluida` | Senha atualizada |
 | `/termos`, `/privacidade` | Páginas provisórias (os textos ainda serão redigidos) |
+| `/perfil` | Leva ao perfil de quem está logado |
+| `/perfil/[username]` | Perfil de qualquer usuário (só para quem está logado): capa, avatar, nome, bio, contadores, Game Shelf e posts (estes ainda vazios). No perfil próprio, "Editar perfil" |
+| `/media/...` | Imagens de avatar e capa guardadas em disco (só desenvolvimento; na nuvem vêm direto do Blob) |
+| `/api/profile-images` | Envio de avatar e capa: entrega ao navegador o token do Blob (só para a pasta do próprio usuário) ou, em desenvolvimento, grava em disco |
 | `/` | Início provisório, só para quem está logado |
 | `/dev/emails` | Caixa de saída de desenvolvimento (só fora de produção) |
 
@@ -99,5 +103,5 @@ Branch própria, pull request para `develop` (homologação), pull request para 
 ## Publicação (Vercel e Neon)
 
 - `develop` é a homologação e `main` é a produção; as duas rodam as migrações do Neon no build (`npm run build:deploy`). Pull requests só geram o build.
-- Variáveis de cada ambiente (veja `.env.example`): `AUTH_SECRET`, `DATABASE_URL`, `EMAIL_PROVIDER`, `APP_URL`, `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
+- Variáveis de cada ambiente (veja `.env.example`): `AUTH_SECRET`, `DATABASE_URL`, `EMAIL_PROVIDER`, `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `BLOB_STORE_ID` (criada pela Vercel ao ligar o Blob store público ao projeto, nos ambientes escolhidos; a autenticação é por OIDC, sem token fixo; sem o Blob não há envio de imagem).
 - Na Vercel o app roda como produção: o Google simulado (`/dev/google`) não existe e as variáveis acima são obrigatórias. Na homologação, `EMAIL_PROVIDER=dev` mostra os e-mails em `/dev/emails`.
