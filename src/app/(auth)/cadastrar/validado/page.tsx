@@ -14,7 +14,7 @@ export default function VerifiedPage() {
         <Icon name="check-circle" size={32} />
         Tudo certo
       </p>
-      <p className={styles.description}>Sua conta está pronta. Vamos começar a montar sua estante.</p>
+      <p className={styles.description}>Sua conta está pronta. Vamos começar a montar o seu Game Shelf.</p>
       <NavButton href="/">Continuar</NavButton>
     </div>
   );
