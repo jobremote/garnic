@@ -125,6 +125,19 @@ describe('searchGames', () => {
     expect(await make(empty.fn).getGame(123)).toBeNull();
   });
 
+  it('getTimeToBeat converte segundos em minutos e devolve nulo sem dado', async () => {
+    const { fn, calls } = fakeFetch({ games: () => json([{ id: 1, hastily: 36000, normally: 54030, completely: 0 }]) });
+    expect(await make(fn).getTimeToBeat(5)).toEqual({ hastily: 600, normally: 901, completely: null });
+    expect(calls[1].url).toBe('https://api.igdb.com/v4/game_time_to_beats');
+    expect(String(calls[1].init?.body)).toContain('where game_id = 5; limit 1;');
+
+    const none = fakeFetch({ games: () => json([]) });
+    expect(await make(none.fn).getTimeToBeat(5)).toBeNull();
+    const empty = fakeFetch({ games: () => json([{ id: 2 }]) });
+    expect(await make(empty.fn).getTimeToBeat(5)).toBeNull();
+    expect(await make(empty.fn).getTimeToBeat(-3)).toBeNull();
+  });
+
   it('sem credenciais: erro "not-configured"', async () => {
     const client = createIgdbClient({ credentials: null });
     await expect(client.searchGames('Hades')).rejects.toMatchObject({ name: 'IgdbError', reason: 'not-configured' });

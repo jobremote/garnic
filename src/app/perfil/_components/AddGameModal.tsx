@@ -24,13 +24,15 @@ type SearchState =
 export interface AddGameModalProps {
   open: boolean;
   onClose: () => void;
-  /** Chamado ao confirmar: o pai grava e mostra o aviso. */
-  onAdd: (game: GameResult, status: ShelfStatus) => void;
+  /** Chamado ao confirmar: o pai grava e mostra o aviso. Com `detail`, abre a edição da entrada em seguida. */
+  onAdd: (game: GameResult, status: ShelfStatus, detail: boolean) => void;
+  /** Jogo que já está na Game Shelf: abre a entrada existente, sem duplicar. */
+  onOpenExisting: (entryId: string) => void;
   pending: boolean;
 }
 
 /** Buscar um jogo no IGDB e escolher em que coluna ele entra (Figma: Buscar jogo e Escolher status). */
-export function AddGameModal({ open, onClose, onAdd, pending }: AddGameModalProps) {
+export function AddGameModal({ open, onClose, onAdd, onOpenExisting, pending }: AddGameModalProps) {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SearchState>({ kind: 'idle' });
   const [selected, setSelected] = useState<GameResult | null>(null);
@@ -58,7 +60,10 @@ export function AddGameModal({ open, onClose, onAdd, pending }: AddGameModalProp
       <Button variant="outline" onClick={() => setSelected(null)} disabled={pending}>
         {t.back}
       </Button>
-      <Button onClick={() => onAdd(selected, status)} disabled={pending}>
+      <Button variant="secondary" onClick={() => onAdd(selected, status, true)} disabled={pending}>
+        {t.addAndDetail}
+      </Button>
+      <Button onClick={() => onAdd(selected, status, false)} disabled={pending}>
         {t.add}
       </Button>
     </>
@@ -97,14 +102,32 @@ export function AddGameModal({ open, onClose, onAdd, pending }: AddGameModalProp
             autoComplete="off"
             autoFocus
           />
-          <SearchResults text={text} search={search} onPick={(game) => { setSelected(game); setStatus('quero-jogar'); }} />
+          <SearchResults
+            text={text}
+            search={search}
+            onPick={(game) => {
+              setSelected(game);
+              setStatus('quero-jogar');
+            }}
+            onOpenExisting={onOpenExisting}
+          />
         </div>
       )}
     </Modal>
   );
 }
 
-function SearchResults({ text, search, onPick }: { text: string; search: SearchState; onPick: (game: GameResult) => void }) {
+function SearchResults({
+  text,
+  search,
+  onPick,
+  onOpenExisting,
+}: {
+  text: string;
+  search: SearchState;
+  onPick: (game: GameResult) => void;
+  onOpenExisting: (entryId: string) => void;
+}) {
   if (text.length < 2) return <p className={styles.hint}>{t.searchHint}</p>;
   if (search.kind === 'idle' || search.kind === 'loading') {
     return (
@@ -133,7 +156,14 @@ function SearchResults({ text, search, onPick }: { text: string; search: SearchS
           thumbnail={game.coverUrl}
           action={
             game.status ? (
-              <Badge tone={STATUS_TONE[game.status]}>{STATUS_LABEL[game.status]}</Badge>
+              <>
+                <Badge tone={STATUS_TONE[game.status]}>{STATUS_LABEL[game.status]}</Badge>
+                {game.entryId ? (
+                  <Button variant="ghost" onClick={() => onOpenExisting(game.entryId as string)} aria-label={`${t.editEntry}: ${game.name}`}>
+                    {t.editEntry}
+                  </Button>
+                ) : null}
+              </>
             ) : (
               <Button variant="outline" onClick={() => onPick(game)} aria-label={`${t.add} ${game.name}`}>
                 {t.add}

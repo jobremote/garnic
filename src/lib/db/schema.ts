@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 const instant = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -186,6 +186,19 @@ export const shelfEntries = pgTable(
     status: text('status').notNull(),
     statusChangedAt: instant('status_changed_at').notNull().defaultNow(),
     createdAt: instant('created_at').notNull().defaultNow(),
+    /** Plataforma em que a pessoa jogou: um dos nomes de `games.platforms`. Opcional. */
+    platform: text('platform'),
+    /** Nota de 1 a 5, inteira. Opcional, em qualquer status. */
+    rating: smallint('rating'),
+    review: text('review'),
+    reviewSpoiler: boolean('review_spoiler').notNull().default(false),
+    /** Início e fim da jogatina, em mês/ano. Cada par vem completo ou vazio; fim não anterior ao início. */
+    startedMonth: smallint('started_month'),
+    startedYear: smallint('started_year'),
+    endedMonth: smallint('ended_month'),
+    endedYear: smallint('ended_year'),
+    /** Tempo de jogo em minutos. Só se informa em Zerado, mas é mantido ao sair de Zerado. */
+    playMinutes: integer('play_minutes'),
   },
   (table) => [
     uniqueIndex('shelf_entries_user_game_key').on(table.userId, table.gameId),
