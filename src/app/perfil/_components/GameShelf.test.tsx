@@ -11,6 +11,9 @@ const actions = vi.hoisted(() => ({
   openEntryAction: vi.fn(),
   saveEntryAction: vi.fn(),
   removeEntryAction: vi.fn(),
+  discardScreenshotAction: vi.fn(),
+  viewEntryAction: vi.fn(),
+  reportScreenshotAction: vi.fn(),
 }));
 vi.mock('../shelf-actions', () => actions);
 
@@ -23,7 +26,7 @@ beforeEach(() => {
 
 describe('Game Shelf: ver', () => {
   it('mostra as 4 colunas com a contagem e o jogo na coluna certa', () => {
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const jogando = screen.getByRole('region', { name: 'Jogando' });
     expect(within(jogando).getByText('Celeste')).toBeInTheDocument();
     expect(within(jogando).getByText('1')).toBeInTheDocument();
@@ -31,7 +34,7 @@ describe('Game Shelf: ver', () => {
   });
 
   it('no perfil de outra pessoa não há adicionar, menu nem arrastar', () => {
-    render(<GameShelf columns={columns()} own={false} title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own={false} title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     expect(screen.queryByRole('button', { name: 'Adicionar jogo' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Ações de/ })).toBeNull();
     expect(screen.getByText('Celeste').closest('[draggable]')).toHaveAttribute('draggable', 'false');
@@ -47,7 +50,7 @@ describe('Game Shelf: mover', () => {
     let finish: (value: unknown) => void = () => {};
     actions.moveGameAction.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
 
     await user.click(screen.getByRole('button', { name: 'Ações de Celeste' }));
     expect(screen.queryByRole('menuitem', { name: 'Mover para Jogando' })).toBeNull(); // não oferece a coluna atual
@@ -64,7 +67,7 @@ describe('Game Shelf: mover', () => {
   it('falha ao mover mostra aviso de erro', async () => {
     actions.moveGameAction.mockResolvedValue({ ok: false, error: 'not-found' });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Ações de Celeste' }));
     await user.click(screen.getByRole('menuitem', { name: 'Mover para Parado' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível concluir');
@@ -78,7 +81,7 @@ describe('Game Shelf: adicionar', () => {
     actions.searchGamesAction.mockResolvedValue({ ok: true, results: [found, { igdbId: 8, name: 'Celeste', detail: '2018', status: 'jogando' }] });
     actions.addGameAction.mockResolvedValue({ ok: true, gameName: 'Hades', status: 'jogando', alreadyOnShelf: false });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
 
     await user.click(screen.getByRole('button', { name: 'Adicionar jogo' }));
     await user.type(screen.getByRole('searchbox', { name: 'Buscar jogo' }), 'had');
@@ -98,7 +101,7 @@ describe('Game Shelf: adicionar', () => {
 
   it('busca com menos de 2 letras só mostra a dica e não chama o servidor', async () => {
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Adicionar jogo' }));
     await user.type(screen.getByRole('searchbox', { name: 'Buscar jogo' }), 'h');
     expect(screen.getByText('Digite pelo menos 2 letras.')).toBeInTheDocument();
@@ -108,7 +111,7 @@ describe('Game Shelf: adicionar', () => {
   it('IGDB não configurado: mostra o aviso no lugar dos resultados', async () => {
     actions.searchGamesAction.mockResolvedValue({ ok: false, error: 'not-configured' });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Adicionar jogo' }));
     await user.type(screen.getByRole('searchbox', { name: 'Buscar jogo' }), 'hades');
     expect(await screen.findByText('A busca de jogos ainda não está configurada neste ambiente.', {}, { timeout: 3000 })).toBeInTheDocument();
@@ -118,7 +121,7 @@ describe('Game Shelf: adicionar', () => {
     actions.searchGamesAction.mockResolvedValue({ ok: true, results: [found] });
     actions.addGameAction.mockResolvedValue({ ok: true, gameName: 'Hades', status: 'zerado', alreadyOnShelf: true });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Adicionar jogo' }));
     await user.type(screen.getByRole('searchbox', { name: 'Buscar jogo' }), 'hades');
     await user.click(await screen.findByRole('button', { name: 'Adicionar Hades' }, { timeout: 3000 }));

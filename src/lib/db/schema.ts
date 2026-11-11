@@ -200,6 +200,9 @@ export const shelfEntries = pgTable(
     endedYear: smallint('ended_year'),
     /** Tempo de jogo em minutos. Só se informa em Zerado, mas é mantido ao sair de Zerado. */
     playMinutes: integer('play_minutes'),
+    /** Screenshot da entrada: uma por entrada, pública (referência da imagem no armazenamento). */
+    screenshotRef: text('screenshot_ref'),
+    screenshotSpoiler: boolean('screenshot_spoiler').notNull().default(false),
   },
   (table) => [
     uniqueIndex('shelf_entries_user_game_key').on(table.userId, table.gameId),
@@ -237,6 +240,28 @@ export const shelfEntryTags = pgTable(
       .references(() => tags.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.entryId, table.tagId] }), index('shelf_entry_tags_tag_idx').on(table.tagId)],
+);
+
+/**
+ * Denúncia de screenshot. Só registra (decisão de 11/11/2026): quem denunciou, qual imagem e o motivo, para revisão
+ * posterior. Não esconde a imagem nem tem painel de moderação. A referência da imagem é guardada junto, para a denúncia
+ * continuar fazendo sentido se a entrada for trocada ou removida (o entry_id fica nulo se a entrada sair).
+ */
+export const screenshotReports = pgTable(
+  'screenshot_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    entryId: uuid('entry_id').references(() => shelfEntries.id, { onDelete: 'set null' }),
+    screenshotRef: text('screenshot_ref').notNull(),
+    reporterId: uuid('reporter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** inappropriate, spam, spoiler ou other. */
+    reason: text('reason').notNull(),
+    details: text('details'),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('screenshot_reports_reporter_image_key').on(table.reporterId, table.screenshotRef), index('screenshot_reports_entry_idx').on(table.entryId)],
 );
 
 export type User = typeof users.$inferSelect;

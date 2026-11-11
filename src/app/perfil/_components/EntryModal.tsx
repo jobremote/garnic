@@ -9,22 +9,25 @@ import {
   Modal,
   MonthYearField,
   Rating,
+  ScreenshotField,
   Select,
   Tabs,
   TextArea,
   type DurationValue,
   type MonthYearValue,
 } from 'nogasds';
+import { IMAGE_ACCEPT, IMAGE_MAX_BYTES, mediaUrl } from '@/lib/profile/images';
 import { REVIEW_MAX } from '@/lib/shelf/entry';
-import { shelfMessages as t } from '@/lib/shelf/messages';
+import { screenshotMessages as sm, shelfMessages as t } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
 import type { TimeToBeat } from '@/lib/igdb/igdb';
-import { openEntryAction, saveEntryAction, type EntryView, type TagData } from '../shelf-actions';
+import { discardScreenshotAction, openEntryAction, saveEntryAction, type EntryView, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { EntryTagsField } from './EntryTagsField';
+import { uploadImage, type UploadMode } from './upload-image';
 
 type TabValue = 'essential' | 'playthrough' | 'review';
-type FieldErrors = Partial<Record<'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags', string>>;
+type FieldErrors = Partial<Record<'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags' | 'screenshot', string>>;
 
 /** O que a pessoa está editando. Fica aqui, e não no servidor, até clicar em Salvar. */
 interface Draft {
@@ -37,6 +40,10 @@ interface Draft {
   ended: MonthYearValue;
   time: DurationValue;
   tagIds: string[];
+  /** Screenshot mostrada (endereço) e a mudança pendente: referência nova, `null` para remover, ausente se não mudou. */
+  shotUrl?: string;
+  shotChange?: string | null;
+  shotSpoiler: boolean;
 }
 
 const toDraft = (entry: EntryView): Draft => ({
@@ -46,6 +53,8 @@ const toDraft = (entry: EntryView): Draft => ({
   review: entry.review ?? '',
   spoiler: entry.reviewSpoiler,
   tagIds: entry.tagIds,
+  shotUrl: entry.screenshotUrl,
+  shotSpoiler: entry.screenshotSpoiler,
   started: entry.started,
   ended: entry.ended,
   time:
@@ -77,10 +86,13 @@ export interface EntryModalProps {
   tags: TagData[];
   /** Uma tag criada no "+ Nova tag": o pai a inclui na lista. */
   onTagCreated: (tag: TagData) => void;
+  /** Onde as imagens são guardadas neste ambiente e quem está enviando (a pasta é do próprio usuário). */
+  uploadMode: UploadMode;
+  userId: string;
 }
 
 /** Editar a entrada em 3 abas e o pop-up do Zerado (Figma: Editar entrada e Pop-up Zerado). */
-export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, onTagCreated }: EntryModalProps) {
+export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, onTagCreated, uploadMode, userId }: EntryModalProps) {
   const [loaded, setLoaded] = useState<{ entry: EntryView; timeToBeat: TimeToBeat | null } | 'failed' | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -114,6 +126,8 @@ export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, on
       onRemove={onRemove}
       tags={tags}
       onTagCreated={onTagCreated}
+      uploadMode={uploadMode}
+      userId={userId}
     />
   );
 }
@@ -128,7 +142,14 @@ interface EntryFormProps extends Omit<EntryModalProps, 'entryId'> {
   title: string;
 }
 
-function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose, onSaved, onRemove, tags, onTagCreated }: EntryFormProps) {
+function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose: closeModal, onSaved, onRemove, tags, onTagCreated, uploadMode, userId }: EntryFormProps) {
+  const [uploading, setUploading] = useState(false);
+  const [shotError, setShotError] = useState<string | null>(null);
+  // Fechar sem salvar: a imagem enviada e ainda não salva é apagada do armazenamento.
+  const onClose = () => {
+    if (typeof draft?.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
+    closeModal();
+  };
   const [tab, setTab] = useState<TabValue>('essential');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -145,6 +166,31 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
   }
   const zeroed = draft.status === 'zerado';
 
+  /** Envia a imagem direto ao armazenamento ao escolher; a entrada só muda quando clicar em Salvar. */
+  const pickShot = async (file: File) => {
+    setShotError(null);
+    if (file.size > IMAGE_MAX_BYTES.screenshot) return setShotError(sm.tooBig(`${IMAGE_MAX_BYTES.screenshot / 1024 / 1024} MB`));
+    if (!IMAGE_ACCEPT.split(',').includes(file.type)) return setShotError(sm.wrongType);
+    if (uploadMode === 'unavailable') return setShotError(sm.uploadUnavailable);
+    setUploading(true);
+    try {
+      const ref = await uploadImage(uploadMode, 'screenshot', file, userId);
+      // Uma imagem enviada antes e ainda não salva é trocada por esta: apaga a anterior.
+      if (typeof draft.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
+      setDraft({ shotUrl: mediaUrl(ref), shotChange: ref });
+    } catch {
+      setShotError(sm.uploadFailed);
+    } finally {
+      setUploading(false);
+    }
+  };
+  const removeShot = () => {
+    setShotError(null);
+    if (typeof draft.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
+    // Se a imagem já estava salva, a remoção só vale ao Salvar; se era uma nova ainda não salva, volta a como estava.
+    setDraft({ shotUrl: undefined, shotChange: entry.screenshotUrl ? null : undefined, shotSpoiler: false });
+  };
+
   const save = async () => {
     setSaving(true);
     setFormError(null);
@@ -158,6 +204,8 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
             platform: draft.platform === '' ? null : draft.platform,
             review: draft.review,
             reviewSpoiler: draft.spoiler,
+            ...(draft.shotChange !== undefined ? { screenshot: draft.shotChange } : {}),
+            screenshotSpoiler: draft.shotSpoiler,
             tagIds: draft.tagIds,
             started: draft.started,
             ended: draft.ended,
@@ -171,10 +219,10 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
     setErrors(result.errors);
     // Leva para a primeira aba que tem erro.
     if (mode === 'edit') {
-      const { status, rating, platform, review, started, ended, playMinutes, tags: tagsError } = result.errors;
+      const { status, rating, platform, review, started, ended, playMinutes, tags: tagsError, screenshot } = result.errors;
       if (status || rating || platform || tagsError) setTab('essential');
       else if (started || ended || playMinutes) setTab('playthrough');
-      else if (review) setTab('review');
+      else if (review || screenshot) setTab('review');
     }
   };
 
@@ -265,7 +313,7 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
                   filled: draft.started.month !== null || draft.ended.month !== null || toMinutes(draft.time) !== null,
                   filledLabel: t.filledTab,
                 },
-                { value: 'review', label: t.tabReview, controls: panel('review'), filled: draft.review.trim() !== '', filledLabel: t.filledTab },
+                { value: 'review', label: t.tabReview, controls: panel('review'), filled: draft.review.trim() !== '' || Boolean(draft.shotUrl), filledLabel: t.filledTab },
               ]}
             />
 
@@ -327,6 +375,19 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
               />
               <Checkbox label={t.reviewSpoiler} checked={draft.spoiler} onChange={(event) => setDraft({ spoiler: event.target.checked })} />
               <p className={styles.hint}>{t.reviewSpoilerHint}</p>
+              <ScreenshotField
+                label={sm.label}
+                src={draft.shotUrl}
+                alt={sm.alt(entry.gameName)}
+                accept={IMAGE_ACCEPT}
+                uploading={uploading}
+                helpText={sm.help(`${IMAGE_MAX_BYTES.screenshot / 1024 / 1024} MB`)}
+                error={shotError ?? errors.screenshot}
+                onSelect={pickShot}
+                onRemove={removeShot}
+              />
+              <Checkbox label={sm.spoilerCheckbox} checked={draft.shotSpoiler} disabled={!draft.shotUrl} onChange={(event) => setDraft({ shotSpoiler: event.target.checked })} />
+              <p className={styles.hint}>{sm.spoilerHint}</p>
             </Panel>
           </>
         )}

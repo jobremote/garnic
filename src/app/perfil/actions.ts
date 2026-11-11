@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
-import { isAcceptableImageRef, type ImageKind } from '@/lib/profile/images';
+import { isAcceptableImageRef, type ProfileImageKind } from '@/lib/profile/images';
 import { profileMessages } from '@/lib/profile/messages';
 import { updateProfile } from '@/lib/profile/profile';
 import { deleteImage, verifyStoredImage } from '@/lib/storage';
@@ -27,12 +27,12 @@ export async function updateProfileAction(_previous: EditProfileState, data: For
   const values = { name: text(data, 'name'), username: text(data, 'username'), bio: text(data, 'bio') };
   const errors: EditProfileState['errors'] = {};
 
-  const fresh: { kind: ImageKind; ref: string }[] = []; // imagens novas desta tentativa
+  const fresh: { kind: ProfileImageKind; ref: string }[] = []; // imagens novas desta tentativa
   /** Apaga as imagens novas se algo falhar. Só as que são desta pessoa: nunca uma referência alheia vinda do navegador. */
   const cleanup = () =>
     Promise.all(fresh.filter((item) => isAcceptableImageRef(item.kind, user.id, item.ref)).map((item) => deleteImage(item.ref)));
   const keys: { avatarKey?: string | null; coverKey?: string | null } = {};
-  for (const kind of ['avatar', 'cover'] as ImageKind[]) {
+  for (const kind of ['avatar', 'cover'] as ProfileImageKind[]) {
     const field = kind === 'avatar' ? 'avatarKey' : 'coverKey';
     const ref = text(data, kind === 'avatar' ? 'avatarRef' : 'coverRef');
     if (ref) {

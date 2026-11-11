@@ -51,6 +51,17 @@ describe('autorização do envio direto ao Blob', () => {
     expect(cover.maximumSizeInBytes).toBe(IMAGE_MAX_BYTES.cover);
   });
 
+  it('libera a screenshot na pasta do próprio usuário, dentro de 5 MB; recusa a pasta de outro tipo', () => {
+    const shot = authorizeBlobUpload(USER, `screenshots/${USER}/screenshot.png`, payload('screenshot'));
+    expect(shot.maximumSizeInBytes).toBe(5 * 1024 * 1024);
+    expect(JSON.parse(shot.tokenPayload)).toEqual({ userId: USER, kind: 'screenshot' });
+    expect(() => authorizeBlobUpload(USER, `avatars/${USER}/avatar.png`, payload('screenshot'))).toThrow();
+    expect(() => authorizeBlobUpload(USER, `screenshots/${OTHER}/screenshot.png`, payload('screenshot'))).toThrow();
+    expect(isAcceptableImageRef('screenshot', USER, blob(`screenshots/${USER}/screenshot-Ab12.webp`))).toBe(true);
+    expect(isAcceptableImageRef('screenshot', USER, blob(`covers/${USER}/cover-Ab12.webp`))).toBe(false);
+    expect(isAcceptableImageRef('screenshot', USER, 'screenshots/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jpg')).toBe(true);
+  });
+
   it('recusa a pasta de outra pessoa, subpastas, outro formato e tipo inválido', () => {
     expect(() => authorizeBlobUpload(USER, `avatars/${OTHER}/avatar.png`, payload('avatar'))).toThrow();
     expect(() => authorizeBlobUpload(USER, `avatars/${USER}/sub/avatar.png`, payload('avatar'))).toThrow();

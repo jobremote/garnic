@@ -4,7 +4,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, type Chan
 import { Avatar, Button, Cover, Icon, Modal, TextArea, TextField } from 'nogasds';
 import { messages } from '@/lib/auth/messages';
 import { checkName, usernameError } from '@/lib/auth/validation';
-import { IMAGE_ACCEPT, IMAGE_MAX_BYTES, type ImageKind } from '@/lib/profile/images';
+import { IMAGE_ACCEPT, IMAGE_MAX_BYTES, type ProfileImageKind as ImageKind } from '@/lib/profile/images';
 import { profileMessages } from '@/lib/profile/messages';
 import { updateProfileAction } from '../actions';
 import { initialEditProfileState, type EditProfileState } from '../state';

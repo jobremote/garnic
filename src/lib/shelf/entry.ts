@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
+import { isAcceptableImageRef } from '@/lib/profile/images';
 import { games, shelfEntries } from '@/lib/db/schema';
 import { isShelfStatus, type ShelfStatus } from './status';
 import { checkTagIds, replaceEntryTags, tagsByEntry } from './tags';
@@ -27,6 +28,9 @@ export interface EntryDetails {
   playMinutes: number | null;
   /** Ids das tags da entrada. */
   tagIds: string[];
+  /** Referência da screenshot (uma por entrada, pública) e se ela tem spoiler. */
+  screenshotRef: string | null;
+  screenshotSpoiler: boolean;
   game: { id: string; igdbId: number; name: string; releasedAt: Date | null; coverImageId: string | null; platforms: string[] };
 }
 
@@ -42,6 +46,8 @@ export async function getEntry(db: Db, userId: string, entryId: string): Promise
   const entryTags = (await tagsByEntry(db, [entry.id])).get(entry.id) ?? [];
   return {
     tagIds: entryTags.map((tag) => tag.id),
+    screenshotRef: entry.screenshotRef,
+    screenshotSpoiler: entry.screenshotSpoiler,
     entryId: entry.id,
     status: entry.status as ShelfStatus,
     platform: entry.platform,
@@ -70,9 +76,12 @@ export interface EntryInput {
   playMinutes?: number | null;
   /** Lista completa de tags da entrada (substitui a atual). Ausente: mantém. */
   tagIds?: unknown;
+  /** Referência da screenshot já enviada (a tela envia a imagem antes). `null` remove. Ausente: mantém. */
+  screenshot?: string | null;
+  screenshotSpoiler?: boolean;
 }
 
-export type EntryField = 'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags';
+export type EntryField = 'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags' | 'screenshot';
 export type EntryErrorCode =
   | 'invalid-status'
   | 'invalid-rating'
@@ -84,10 +93,11 @@ export type EntryErrorCode =
   | 'end-before-start'
   | 'invalid-time'
   | 'invalid-tags'
-  | 'too-many-tags';
+  | 'too-many-tags'
+  | 'invalid-screenshot';
 
 export type UpdateEntryResult =
-  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean }
+  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean; replacedScreenshot: string | null }
   | { ok: false; error: 'not-found' }
   | { ok: false; error: 'invalid'; errors: Partial<Record<EntryField, EntryErrorCode>> };
 
@@ -172,6 +182,16 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
     else errors.playMinutes = 'invalid-time';
   }
 
+  let replacedScreenshot: string | null = null;
+  if (input.screenshot !== undefined) {
+    if (input.screenshot === null) set.screenshotRef = null;
+    else if (typeof input.screenshot === 'string' && isAcceptableImageRef('screenshot', userId, input.screenshot)) set.screenshotRef = input.screenshot;
+    else errors.screenshot = 'invalid-screenshot';
+    // Trocar ou remover: a imagem antiga sai do armazenamento (quem chama apaga).
+    if (!errors.screenshot && current.screenshotRef && current.screenshotRef !== set.screenshotRef) replacedScreenshot = current.screenshotRef;
+  }
+  if (input.screenshotSpoiler !== undefined) set.screenshotSpoiler = input.screenshotSpoiler === true;
+
   let tagIds: string[] | null = null;
   if (input.tagIds !== undefined) {
     const checked = await checkTagIds(db, userId, input.tagIds);
@@ -190,10 +210,10 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
     await db.update(shelfEntries).set(set).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
   }
   if (tagIds !== null) await replaceEntryTags(db, entryId, tagIds);
-  return { ok: true, gameName: current.game.name, status, statusChanged };
+  return { ok: true, gameName: current.game.name, status, statusChanged, replacedScreenshot };
 }
 
-export type RemoveEntryResult = { ok: true; gameName: string } | { ok: false; error: 'not-found' };
+export type RemoveEntryResult = { ok: true; gameName: string; screenshotRef: string | null } | { ok: false; error: 'not-found' };
 
 /**
  * Tira o jogo da Game Shelf. Só o dono. Apaga a entrada (nota, review e datas saem junto; a nota sai da média da
@@ -201,12 +221,12 @@ export type RemoveEntryResult = { ok: true; gameName: string } | { ok: false; er
  */
 export async function removeEntry(db: Db, userId: string, entryId: string): Promise<RemoveEntryResult> {
   const [row] = await db
-    .select({ name: games.name })
+    .select({ name: games.name, screenshotRef: shelfEntries.screenshotRef })
     .from(shelfEntries)
     .innerJoin(games, eq(games.id, shelfEntries.gameId))
     .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)))
     .limit(1);
   if (!row) return { ok: false, error: 'not-found' };
   await db.delete(shelfEntries).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
-  return { ok: true, gameName: row.name };
+  return { ok: true, gameName: row.name, screenshotRef: row.screenshotRef };
 }

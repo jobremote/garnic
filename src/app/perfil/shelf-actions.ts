@@ -2,11 +2,16 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
+import { shelfEntries } from '@/lib/db/schema';
 import { coverUrl, getIgdbClient, IgdbError, type IgdbGame, type TimeToBeat } from '@/lib/igdb/igdb';
 import { getEntry, REVIEW_MAX, removeEntry, updateEntry, type EntryErrorCode, type EntryField, type MonthYear } from '@/lib/shelf/entry';
+import { isAcceptableImageRef, mediaUrl } from '@/lib/profile/images';
+import { deleteImage, verifyStoredImage } from '@/lib/storage';
 import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
+import { getPublicEntry, reportScreenshot, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
 import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
 import { addToShelf, moveEntry, statusByIgdbId } from '@/lib/shelf/shelf';
@@ -118,6 +123,8 @@ export interface EntryView {
   ended: MonthYear;
   playMinutes: number | null;
   tagIds: string[];
+  screenshotUrl?: string;
+  screenshotSpoiler: boolean;
   gameName: string;
   year: string;
   coverUrl?: string;
@@ -155,6 +162,8 @@ export async function openEntryAction(entryId: string): Promise<OpenEntryResult>
       ended: entry.ended,
       playMinutes: entry.playMinutes,
       tagIds: entry.tagIds,
+      screenshotUrl: mediaUrl(entry.screenshotRef),
+      screenshotSpoiler: entry.screenshotSpoiler,
       gameName: entry.game.name,
       year: entry.game.releasedAt ? String(entry.game.releasedAt.getUTCFullYear()) : '',
       coverUrl: coverUrl(entry.game.coverImageId, 'cover_small'),
@@ -177,13 +186,19 @@ const errorText = (code: EntryErrorCode) => {
 export async function saveEntryAction(entryId: string, input: unknown): Promise<SaveEntryResult> {
   const user = await requireUser();
   if (typeof entryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entryId)) return { ok: false, error: 'not-found' };
-  const result = await updateEntry(await getDb(), user.id, entryId, parseEntryInput(input));
+  const parsed = parseEntryInput(input);
+  // Imagem nova: confere formato e peso no armazenamento antes de gravar (o tipo informado pelo navegador não é confiável).
+  if (typeof parsed.screenshot === 'string' && isAcceptableImageRef('screenshot', user.id, parsed.screenshot) && !(await verifyStoredImage('screenshot', parsed.screenshot))) {
+    return { ok: false, error: 'invalid', errors: { screenshot: entryErrorMessages['invalid-screenshot'] } };
+  }
+  const result = await updateEntry(await getDb(), user.id, entryId, parsed);
   if (!result.ok) {
     if (result.error === 'not-found') return { ok: false, error: 'not-found' };
     const errors: Partial<Record<EntryField, string>> = {};
     for (const [field, code] of Object.entries(result.errors) as [EntryField, EntryErrorCode][]) errors[field] = errorText(code);
     return { ok: false, error: 'invalid', errors };
   }
+  await deleteImage(result.replacedScreenshot); // trocou ou removeu: a imagem antiga sai do armazenamento
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, gameName: result.gameName, status: result.status, statusChanged: result.statusChanged };
 }
@@ -196,6 +211,7 @@ export async function removeEntryAction(entryId: string): Promise<RemoveGameResu
   if (typeof entryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entryId)) return { ok: false };
   const result = await removeEntry(await getDb(), user.id, entryId);
   if (!result.ok) return { ok: false };
+  await deleteImage(result.screenshotRef);
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, gameName: result.gameName };
 }
@@ -255,4 +271,86 @@ export async function deleteTagAction(tagId: string): Promise<DeleteTagActionRes
   if (!result.ok) return { ok: false };
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, name: result.name };
+}
+
+/** Apaga uma imagem enviada que não chegou a ser salva (a pessoa cancelou a edição). Só da própria pasta. */
+export async function discardScreenshotAction(ref: unknown): Promise<void> {
+  const user = await requireUser();
+  if (typeof ref !== 'string' || !isAcceptableImageRef('screenshot', user.id, ref)) return;
+  // Se a referência já é a screenshot de alguma entrada da pessoa, não apaga.
+  const [entry] = await (await getDb()).select({ id: shelfEntries.id }).from(shelfEntries).where(and(eq(shelfEntries.userId, user.id), eq(shelfEntries.screenshotRef, ref))).limit(1);
+  if (!entry) await deleteImage(ref);
+}
+
+/** A entrada de qualquer pessoa, como quem vê (a screenshot é pública; spoiler fica atrás do aviso). */
+export interface PublicEntryView {
+  entryId: string;
+  own: boolean;
+  gameName: string;
+  year: string;
+  coverUrl?: string;
+  status: ShelfStatus;
+  platform: string | null;
+  rating: number | null;
+  review: string | null;
+  reviewSpoiler: boolean;
+  started: MonthYear;
+  ended: MonthYear;
+  playMinutes: number | null;
+  screenshotUrl?: string;
+  screenshotSpoiler: boolean;
+  tags: { id: string; name: string; color: TagColor }[];
+  reportedByViewer: boolean;
+}
+
+export type ViewEntryResult = { ok: true; entry: PublicEntryView } | { ok: false };
+
+export async function viewEntryAction(entryId: string): Promise<ViewEntryResult> {
+  const user = await requireUser();
+  if (typeof entryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entryId)) return { ok: false };
+  const entry = await getPublicEntry(await getDb(), user.id, entryId);
+  if (!entry) return { ok: false };
+  return {
+    ok: true,
+    entry: {
+      entryId: entry.entryId,
+      own: entry.ownerId === user.id,
+      gameName: entry.game.name,
+      year: entry.game.releasedAt ? String(entry.game.releasedAt.getUTCFullYear()) : '',
+      coverUrl: coverUrl(entry.game.coverImageId, 'cover_small'),
+      status: entry.status,
+      platform: entry.platform,
+      rating: entry.rating,
+      review: entry.review,
+      reviewSpoiler: entry.reviewSpoiler,
+      started: entry.started,
+      ended: entry.ended,
+      playMinutes: entry.playMinutes,
+      screenshotUrl: mediaUrl(entry.screenshotRef),
+      screenshotSpoiler: entry.screenshotSpoiler,
+      tags: entry.tags,
+      reportedByViewer: entry.reportedByViewer,
+    },
+  };
+}
+
+export type ReportScreenshotResult =
+  | { ok: true; alreadyReported: boolean }
+  | { ok: false; error: 'not-found' | 'own-entry' | 'invalid'; errors?: Partial<Record<'reason' | 'details', string>> };
+
+/** Denuncia a screenshot de outra pessoa. Só registra para revisão. */
+export async function reportScreenshotAction(entryId: string, reason: unknown, details: unknown): Promise<ReportScreenshotResult> {
+  const user = await requireUser();
+  if (typeof entryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entryId)) return { ok: false, error: 'not-found' };
+  const result = await reportScreenshot(await getDb(), user.id, entryId, { reason: reason as ReportReason, details });
+  if (result.ok) return result;
+  if (result.error !== 'invalid') return { ok: false, error: result.error };
+  return {
+    ok: false,
+    error: 'invalid',
+    errors: {
+      reason: result.errors?.reason ? 'Escolha um motivo.' : undefined,
+      details: result.errors?.details ? `Os detalhes podem ter até ${REPORT_DETAILS_MAX} caracteres.` : undefined,
+    },
+  };
 }

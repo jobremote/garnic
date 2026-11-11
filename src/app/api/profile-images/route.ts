@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const data = await request.formData();
     const kind = data.get('kind');
     const file = data.get('file');
-    if ((kind !== 'avatar' && kind !== 'cover') || !(file instanceof File)) return json({ error: 'Envio inválido.' }, 400);
+    if ((kind !== 'avatar' && kind !== 'cover' && kind !== 'screenshot') || !(file instanceof File)) return json({ error: 'Envio inválido.' }, 400);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const check = checkImage(kind, bytes);
     if (!check.ok) return json({ error: check.reason }, 400);

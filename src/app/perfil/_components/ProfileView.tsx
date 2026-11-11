@@ -130,7 +130,7 @@ export function ProfileView({
         </header>
 
         <section className={styles.section} aria-labelledby="game-shelf">
-          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} tags={tags} />
+          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} tags={tags} uploadMode={storageMode()} userId={profile.id} />
         </section>
 
         <section className={styles.section} aria-labelledby="posts">

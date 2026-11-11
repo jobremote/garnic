@@ -2,12 +2,14 @@
 
 import { startTransition, useEffect, useOptimistic, useState, type DragEvent } from 'react';
 import { BoardColumn, Button, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
-import { shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
+import { screenshotMessages as sm, shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
 import { addGameAction, moveGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
 import { EntryModal, RemoveEntryModal } from './EntryModal';
+import { EntryViewModal } from './EntryViewModal';
+import type { UploadMode } from './upload-image';
 import { ManageTagsModal } from './ManageTagsModal';
 
 /** Um card do kanban, já com o que a tela precisa (nada de dados do banco que não deva ir ao navegador). */
@@ -33,12 +35,28 @@ type Dialog =
   | { kind: 'edit'; entryId: string }
   | { kind: 'zeroed'; entryId: string }
   | { kind: 'remove'; entryId: string; name: string }
+  | { kind: 'view'; entryId: string }
   | null;
 
 const NOTICE_MS = 6000;
 
 /** Game Shelf do perfil: kanban de 4 colunas, mover por menu ou arrastando (só no próprio perfil), adicionar, editar e remover. */
-export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: ShelfData; own: boolean; title: string; tags: TagData[] }) {
+export function GameShelf({
+  columns,
+  own,
+  title,
+  tags: tagsProp,
+  uploadMode,
+  userId,
+}: {
+  columns: ShelfData;
+  own: boolean;
+  title: string;
+  tags: TagData[];
+  /** Onde as imagens são guardadas neste ambiente e quem é a dona da Game Shelf (a pasta das screenshots). */
+  uploadMode: UploadMode;
+  userId: string;
+}) {
   // Lista de tags: vem do servidor e muda na hora quando a pessoa cria, edita ou exclui (o servidor reenvia depois).
   const [seenTags, setSeenTags] = useState(tagsProp);
   const [tagList, setTagList] = useState(tagsProp);
@@ -126,7 +144,7 @@ export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: Sh
 
   const onSaved = (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => {
     const wasZeroedPopup = dialog?.kind === 'zeroed';
-    const entryId = dialog && dialog.kind !== 'remove' ? dialog.entryId : null;
+    const entryId = dialog && (dialog.kind === 'edit' || dialog.kind === 'zeroed') ? dialog.entryId : null;
     setNotice({ variant: 'success', title: t.saved, text: t.savedText(result.gameName) });
     setDialog(null);
     // Mudou para Zerado pela edição: o pop-up opcional também aparece (a não ser que ele mesmo acabou de salvar).
@@ -220,6 +238,7 @@ export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: Sh
                 onDragEnd={own ? () => { setDragging(null); setOver(null); } : undefined}
               >
                 <ItemCard title={card.name} detail={card.detail || undefined} thumbnail={card.coverUrl} tags={cardTags(card)} />
+                <button type="button" className={styles.cardOpen} aria-label={`${sm.viewEntry}: ${card.name}`} onClick={() => setDialog({ kind: 'view', entryId: card.entryId })} />
                 {own ? (
                   <Menu
                     className={styles.cardMenu}
@@ -249,7 +268,7 @@ export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: Sh
         <AddGameModal key={session} open={adding} onClose={closeAdd} onAdd={add} onOpenExisting={openExisting} pending={saving} />
       ) : null}
 
-      {own && dialog && dialog.kind !== 'remove' ? (
+      {own && dialog && (dialog.kind === 'edit' || dialog.kind === 'zeroed') ? (
         <EntryModal
           key={`${dialog.kind}-${dialog.entryId}`}
           mode={dialog.kind}
@@ -257,6 +276,8 @@ export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: Sh
           onClose={() => setDialog(null)}
           onSaved={onSaved}
           onRemove={(entryId, name) => setDialog({ kind: 'remove', entryId, name })}
+          uploadMode={uploadMode}
+          userId={userId}
           tags={tagList}
           onTagCreated={(tag) => setTagList((list) => (list.some((item) => item.id === tag.id) ? list : [...list, tag]))}
         />
@@ -273,6 +294,15 @@ export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: Sh
             setTagList((list) => list.filter((item) => item.id !== tag.id));
             setNotice({ variant: 'success', title: tm.tagDeleted, text: tm.tagDeletedText(tag.name) });
           }}
+        />
+      ) : null}
+      {dialog?.kind === 'view' ? (
+        <EntryViewModal
+          key={dialog.entryId}
+          entryId={dialog.entryId}
+          onClose={() => setDialog(null)}
+          onEdit={(entryId) => setDialog({ kind: 'edit', entryId })}
+          onReported={(already) => setNotice(already ? { variant: 'info', title: sm.alreadyReported } : { variant: 'success', title: sm.reported, text: sm.reportedText })}
         />
       ) : null}
       {own && dialog?.kind === 'remove' ? (
