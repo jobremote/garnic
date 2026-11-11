@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { getEditLocks, getPublicProfile } from '@/lib/profile/profile';
+import { getShelf, shelfCounters } from '@/lib/shelf/shelf';
 import { ProfileView } from '../_components/ProfileView';
 
 export const metadata: Metadata = { title: 'Perfil' };
@@ -19,7 +20,8 @@ async function Profile({ params }: { params: Promise<{ username: string }> }) {
   if (!profile) notFound();
 
   const locks = viewer.id === profile.id ? await getEditLocks(db, viewer.id) : null;
-  return <ProfileView viewer={viewer} profile={profile} locks={locks} />;
+  const [shelf, counters] = await Promise.all([getShelf(db, profile.id), shelfCounters(db, profile.id)]);
+  return <ProfileView viewer={viewer} profile={profile} locks={locks} shelf={shelf} counters={counters} />;
 }
 
 export default function ProfilePage({ params }: PageProps<'/perfil/[username]'>) {

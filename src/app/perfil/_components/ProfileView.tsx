@@ -1,13 +1,31 @@
 import Link from 'next/link';
-import { Avatar, Banner, BoardColumn, Button, Cover, IconButton, MobileTopBar, Stat, TopBar } from 'nogasds';
+import { Avatar, Banner, Button, Cover, MobileTopBar, Stat, TopBar } from 'nogasds';
 import { logoutAction } from '@/app/(auth)/actions';
 import type { CurrentUser } from '@/lib/auth/current-user';
+import { coverUrl } from '@/lib/igdb/igdb';
 import { mediaUrl } from '@/lib/profile/images';
 import { formatDate, profileMessages as t } from '@/lib/profile/messages';
 import type { EditLocks, PublicProfile } from '@/lib/profile/profile';
+import type { ShelfColumns, ShelfCounters } from '@/lib/shelf/shelf';
+import { SHELF_STATUSES } from '@/lib/shelf/status';
 import { storageMode } from '@/lib/storage';
 import styles from '../profile.module.css';
 import { EditProfile } from './EditProfile';
+import { GameShelf, type ShelfData } from './GameShelf';
+
+/** Só o que o card precisa vai para o navegador: id da entrada, nome, ano e capa. */
+function toShelfData(shelf: ShelfColumns): ShelfData {
+  const data = {} as ShelfData;
+  for (const status of SHELF_STATUSES) {
+    data[status] = shelf[status].map((card) => ({
+      entryId: card.entryId,
+      name: card.game.name,
+      detail: card.game.releasedAt ? String(card.game.releasedAt.getUTCFullYear()) : '',
+      coverUrl: coverUrl(card.game.coverImageId, 'cover_small'),
+    }));
+  }
+  return data;
+}
 
 function TopBars({ viewer }: { viewer: CurrentUser }) {
   const brand = (
@@ -43,10 +61,14 @@ export function ProfileView({
   viewer,
   profile,
   locks,
+  shelf,
+  counters,
 }: {
   viewer: CurrentUser;
   profile: PublicProfile;
   locks: EditLocks | null;
+  shelf: ShelfColumns;
+  counters: ShelfCounters;
 }) {
   const own = viewer.id === profile.id;
 
@@ -90,8 +112,8 @@ export function ProfileView({
             {/* Hierarquia: os contadores de jogo (o assunto do produto) em destaque; os sociais, de apoio. */}
             <div className={styles.stats}>
               <dl className={styles.statGroup} aria-label="Jogos">
-                <Stat value={0} label={t.zeroedThisYear} />
-                <Stat value={0} label={t.backlog} />
+                <Stat value={counters.zeroedThisYear} label={t.zeroedThisYear} />
+                <Stat value={counters.backlog} label={t.backlog} />
               </dl>
               {/* Seguidores e Seguindo dependem do bloco Feed (seguir): 0 até lá. */}
               <dl className={styles.statGroup} aria-label="Comunidade">
@@ -103,18 +125,7 @@ export function ProfileView({
         </header>
 
         <section className={styles.section} aria-labelledby="game-shelf">
-          <div className={styles.sectionHeader}>
-            <h2 id="game-shelf" className={styles.sectionTitle}>
-              {t.gameShelf}
-            </h2>
-            {own ? <IconButton icon="add" label={t.gameShelfAdd} variant="outline" size="sm" disabled /> : null}
-          </div>
-          {/* Rolagem para o lado no celular: a região precisa receber foco para quem usa só o teclado. */}
-          <div className={styles.kanban} role="region" aria-label={t.gameShelf} tabIndex={0}>
-            {t.statuses.map((status) => (
-              <BoardColumn key={status} className={styles.column} title={status} count={0} emptyMessage={t.shelfEmpty} />
-            ))}
-          </div>
+          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} />
         </section>
 
         <section className={styles.section} aria-labelledby="posts">
