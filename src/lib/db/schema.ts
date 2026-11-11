@@ -146,4 +146,53 @@ export const devEmails = pgTable('dev_emails', {
   createdAt: instant('created_at').notNull().defaultNow(),
 });
 
+/**
+ * Jogo conhecido pelo Garnic: cópia local dos dados do IGDB, criada na primeira vez que alguém adiciona o jogo.
+ * `igdbId` identifica o jogo no IGDB. A capa é só o `image_id` do IGDB (a URL é montada na hora, em `src/lib/igdb`).
+ */
+export const games = pgTable(
+  'games',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    igdbId: integer('igdb_id').notNull(),
+    name: text('name').notNull(),
+    slug: text('slug'),
+    coverImageId: text('cover_image_id'),
+    /** Data do primeiro lançamento (o IGDB manda um Unix timestamp). */
+    releasedAt: instant('released_at'),
+    /** Nomes das plataformas em que o jogo saiu. */
+    platforms: text('platforms').array().notNull().default([]),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('games_igdb_id_key').on(table.igdbId)],
+);
+
+/**
+ * Entrada da Game Shelf: um jogo na estante de uma pessoa. Uma entrada por jogo por usuário (rejogo é da v2).
+ * `status` é um de `quero-jogar`, `parado`, `jogando`, `zerado` (ver `src/lib/shelf/status.ts`).
+ * `statusChangedAt` marca a última mudança de coluna: ordena os cards (mais recente primeiro) e, em Zerado, é a data
+ * de conclusão usada pelo contador "Zerados no ano" enquanto não houver data de fim informada.
+ */
+export const shelfEntries = pgTable(
+  'shelf_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => games.id),
+    status: text('status').notNull(),
+    statusChangedAt: instant('status_changed_at').notNull().defaultNow(),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('shelf_entries_user_game_key').on(table.userId, table.gameId),
+    index('shelf_entries_user_status_idx').on(table.userId, table.status, table.statusChangedAt),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
+export type Game = typeof games.$inferSelect;
+export type ShelfEntry = typeof shelfEntries.$inferSelect;

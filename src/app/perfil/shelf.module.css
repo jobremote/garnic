@@ -1,0 +1,99 @@
+/*
+ * Game Shelf no perfil: kanban, adicionar jogo e aviso. Layout do protótipo ("Game Shelf" no Figma).
+ * Só tokens semânticos do NogasDS.
+ */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--nds-type-overline);
+  letter-spacing: var(--nds-type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--nds-text-muted);
+}
+
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nds-space-gap-lg);
+}
+
+/* Card do kanban: o menu "Mover para" fica no canto de cima, à direita. */
+.card {
+  position: relative;
+}
+.card[draggable='true'] {
+  cursor: grab;
+}
+.card[data-dragging] {
+  opacity: 0.4;
+}
+.cardMenu {
+  position: absolute;
+  top: var(--nds-space-gap-xs);
+  right: var(--nds-space-gap-xs);
+}
+
+/* Coluna que vai receber o card arrastado: borda tracejada. */
+.dropTarget {
+  outline: var(--nds-stroke-default) dashed var(--nds-border-strong);
+  outline-offset: calc(var(--nds-stroke-default) * -1);
+}
+
+/* Aviso: fixo embaixo, no centro. */
+.toast {
+  position: fixed;
+  z-index: 20;
+  bottom: var(--nds-space-inset-xl);
+  left: 50%;
+  width: min(480px, calc(100vw - 2 * var(--nds-space-inset-xl)));
+  transform: translateX(-50%);
+}
+
+/* Adicionar jogo */
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+.resultList {
+  margin: 0;
+  padding: 0;
+}
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.legend {
+  margin-bottom: var(--nds-space-gap-md);
+  padding: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+.hint {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+@media (max-width: 640px) {
+  /* Celular: colunas lado a lado, com rolagem para o lado. */
+  .kanban {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: var(--nds-space-inset-sm);
+  }
+  .kanban > * {
+    flex: 0 0 256px;
+  }
+}

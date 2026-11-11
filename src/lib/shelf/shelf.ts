@@ -1,0 +1,156 @@
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import type { Db } from '@/lib/db/connect';
+import { games, shelfEntries, type Game } from '@/lib/db/schema';
+import type { IgdbGame } from '@/lib/igdb/igdb';
+import { isShelfStatus, SHELF_STATUSES, type ShelfStatus } from './status';
+
+/** Regras da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
+
+export interface ShelfCard {
+  entryId: string;
+  status: ShelfStatus;
+  statusChangedAt: Date;
+  game: Pick<Game, 'id' | 'igdbId' | 'name' | 'slug' | 'coverImageId' | 'releasedAt' | 'platforms'>;
+}
+
+export type ShelfColumns = Record<ShelfStatus, ShelfCard[]>;
+
+const emptyColumns = (): ShelfColumns => ({ 'quero-jogar': [], parado: [], jogando: [], zerado: [] });
+
+/**
+ * Guarda (ou atualiza) a cópia local do jogo do IGDB e devolve o jogo. Idempotente: adicionar o mesmo jogo de novo
+ * só atualiza nome, capa e plataformas.
+ */
+async function saveGame(db: Db, game: IgdbGame): Promise<Game> {
+  const values = {
+    igdbId: game.igdbId,
+    name: game.name,
+    slug: game.slug,
+    coverImageId: game.coverImageId,
+    releasedAt: game.releasedAt,
+    platforms: game.platforms,
+  };
+  const [row] = await db
+    .insert(games)
+    .values(values)
+    .onConflictDoUpdate({ target: games.igdbId, set: { name: values.name, slug: values.slug, coverImageId: values.coverImageId, releasedAt: values.releasedAt, platforms: values.platforms } })
+    .returning();
+  return row;
+}
+
+export type AddToShelfResult =
+  | { ok: true; entryId: string; status: ShelfStatus; alreadyOnShelf: boolean; gameName: string }
+  | { ok: false; error: 'invalid-status' };
+
+/**
+ * Põe um jogo na Game Shelf com o status escolhido: é a única coisa exigida (jogo e status).
+ * Uma entrada por jogo por usuário: se o jogo já está na estante, **não duplica nem muda a coluna**; devolve a
+ * entrada existente (`alreadyOnShelf`) para a tela abri-la. O Neon HTTP não tem transações, então a regra fica no
+ * índice único (`shelf_entries_user_game_key`) e no `ON CONFLICT DO NOTHING`.
+ */
+export async function addToShelf(db: Db, userId: string, game: IgdbGame, status: unknown, now = new Date()): Promise<AddToShelfResult> {
+  if (!isShelfStatus(status)) return { ok: false, error: 'invalid-status' };
+  const saved = await saveGame(db, game);
+  const [created] = await db
+    .insert(shelfEntries)
+    .values({ userId, gameId: saved.id, status, statusChangedAt: now, createdAt: now })
+    .onConflictDoNothing({ target: [shelfEntries.userId, shelfEntries.gameId] })
+    .returning({ id: shelfEntries.id });
+  if (created) return { ok: true, entryId: created.id, status, alreadyOnShelf: false, gameName: saved.name };
+
+  const [existing] = await db
+    .select({ id: shelfEntries.id, status: shelfEntries.status })
+    .from(shelfEntries)
+    .where(and(eq(shelfEntries.userId, userId), eq(shelfEntries.gameId, saved.id)))
+    .limit(1);
+  return { ok: true, entryId: existing.id, status: existing.status as ShelfStatus, alreadyOnShelf: true, gameName: saved.name };
+}
+
+export type MoveResult =
+  | { ok: true; status: ShelfStatus; changed: boolean; gameName: string }
+  | { ok: false; error: 'invalid-status' | 'not-found' };
+
+/**
+ * Muda a entrada de coluna. Só o dono mexe na própria entrada. Mover para a coluna em que já está não faz nada
+ * (não mexe na data). Mover para Zerado não exige nenhum campo: o pop-up opcional vem na entrega 2.
+ */
+export async function moveEntry(db: Db, userId: string, entryId: string, status: unknown, now = new Date()): Promise<MoveResult> {
+  if (!isShelfStatus(status)) return { ok: false, error: 'invalid-status' };
+  const [current] = await db
+    .select({ status: shelfEntries.status, name: games.name })
+    .from(shelfEntries)
+    .innerJoin(games, eq(games.id, shelfEntries.gameId))
+    .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)))
+    .limit(1);
+  if (!current) return { ok: false, error: 'not-found' };
+  if (current.status === status) return { ok: true, status, changed: false, gameName: current.name };
+  await db
+    .update(shelfEntries)
+    .set({ status, statusChangedAt: now })
+    .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
+  return { ok: true, status, changed: true, gameName: current.name };
+}
+
+/** A estante de uma pessoa em colunas. Dentro de cada coluna, o que mudou de status por último vem primeiro. */
+export async function getShelf(db: Db, userId: string): Promise<ShelfColumns> {
+  const rows = await db
+    .select({
+      entryId: shelfEntries.id,
+      status: shelfEntries.status,
+      statusChangedAt: shelfEntries.statusChangedAt,
+      game: {
+        id: games.id,
+        igdbId: games.igdbId,
+        name: games.name,
+        slug: games.slug,
+        coverImageId: games.coverImageId,
+        releasedAt: games.releasedAt,
+        platforms: games.platforms,
+      },
+    })
+    .from(shelfEntries)
+    .innerJoin(games, eq(games.id, shelfEntries.gameId))
+    .where(eq(shelfEntries.userId, userId))
+    .orderBy(desc(shelfEntries.statusChangedAt), desc(shelfEntries.createdAt));
+  const columns = emptyColumns();
+  for (const row of rows) if (isShelfStatus(row.status)) columns[row.status].push({ ...row, status: row.status });
+  return columns;
+}
+
+/** Entre estes jogos do IGDB, em que coluna cada um já está na estante da pessoa (para marcar os resultados da busca). */
+export async function statusByIgdbId(db: Db, userId: string, igdbIds: number[]): Promise<Map<number, ShelfStatus>> {
+  const result = new Map<number, ShelfStatus>();
+  if (igdbIds.length === 0) return result;
+  const rows = await db
+    .select({ igdbId: games.igdbId, status: shelfEntries.status })
+    .from(shelfEntries)
+    .innerJoin(games, eq(games.id, shelfEntries.gameId))
+    .where(and(eq(shelfEntries.userId, userId), inArray(games.igdbId, igdbIds)));
+  for (const row of rows) if (isShelfStatus(row.status)) result.set(row.igdbId, row.status);
+  return result;
+}
+
+export interface ShelfCounters {
+  /** Jogos que entraram em Zerado no ano de `now` (horário de Brasília). */
+  zeroedThisYear: number;
+  /** Jogos em Quero jogar. */
+  backlog: number;
+}
+
+/**
+ * Contadores do perfil. "Zerados no ano" conta as entradas em Zerado cuja data de conclusão cai no ano corrente;
+ * enquanto a data de fim não existe (entrega 2), a data é a de entrada em Zerado. Backlog = jogos em Quero jogar.
+ */
+export async function shelfCounters(db: Db, userId: string, now = new Date()): Promise<ShelfCounters> {
+  const year = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(now));
+  const [row] = await db
+    .select({
+      zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado' and extract(year from ${shelfEntries.statusChangedAt} at time zone 'America/Sao_Paulo') = ${year})::int`,
+      backlog: sql<number>`count(*) filter (where ${shelfEntries.status} = 'quero-jogar')::int`,
+    })
+    .from(shelfEntries)
+    .where(eq(shelfEntries.userId, userId));
+  return { zeroedThisYear: row?.zeroed ?? 0, backlog: row?.backlog ?? 0 };
+}
+
+export { SHELF_STATUSES };
