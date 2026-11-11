@@ -51,8 +51,12 @@ export async function updateProfileAction(_previous: EditProfileState, data: For
     return { values, errors };
   }
 
+  // Enquadramento da capa: texto numérico do formulário (vazio = não mexeu). Valor estranho vira NaN e as regras recusam.
+  const positionText = text(data, 'coverPosition').trim();
+  const coverPosition = positionText === '' ? undefined : Number(positionText);
+
   const db = await getDb();
-  const result = await updateProfile(db, user.id, { ...values, ...keys });
+  const result = await updateProfile(db, user.id, { ...values, ...keys, coverPosition });
   if (!result.ok) {
     await cleanup(); // nada foi salvo: as imagens novas não ficam sobrando
     return { values, errors: result.errors };

@@ -20,6 +20,8 @@ export interface PublicProfile {
   bio: string | null;
   avatarKey: string | null;
   coverKey: string | null;
+  /** Enquadramento vertical da capa (0 a 100). */
+  coverPosition: number;
 }
 
 /** Perfil pelo @usuário. Conta que ainda não validou o e-mail não tem perfil. */
@@ -32,6 +34,7 @@ export async function getPublicProfile(db: Db, username: string): Promise<Public
       bio: users.bio,
       avatarKey: users.avatarKey,
       coverKey: users.coverKey,
+      coverPosition: users.coverPosition,
     })
     .from(users)
     .where(and(eq(users.username, username), isNotNull(users.emailVerifiedAt)))
@@ -80,9 +83,11 @@ export interface ProfileInput {
   /** `undefined` mantém a imagem atual; `null` remove; texto é a chave da imagem nova. */
   avatarKey?: string | null;
   coverKey?: string | null;
+  /** Enquadramento vertical da capa, inteiro de 0 a 100. `undefined` mantém (ou volta ao centro se a capa for trocada). */
+  coverPosition?: number;
 }
 
-export type ProfileErrors = Partial<Record<'name' | 'username' | 'bio', string>>;
+export type ProfileErrors = Partial<Record<'name' | 'username' | 'bio' | 'coverPosition', string>>;
 
 export type UpdateProfileResult =
   | { ok: true; username: string; replacedKeys: string[] }
@@ -129,10 +134,15 @@ export async function updateProfile(db: Db, userId: string, input: ProfileInput,
 
   const bio = normalizeBio(input.bio);
   if (bio.length > BIO_MAX) errors.bio = profileMessages.bioTooLong(bio.length);
+  if (input.coverPosition !== undefined && !(Number.isInteger(input.coverPosition) && input.coverPosition >= 0 && input.coverPosition <= 100)) {
+    errors.coverPosition = profileMessages.coverPositionInvalid;
+  }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const avatarKey = input.avatarKey === undefined ? user.avatarKey : input.avatarKey;
   const coverKey = input.coverKey === undefined ? user.coverKey : input.coverKey;
+  // Capa nova (ou removida): o enquadramento volta ao centro, a não ser que a pessoa já tenha ajustado o da nova imagem.
+  const coverPosition = input.coverPosition ?? (coverKey !== user.coverKey ? 50 : user.coverPosition);
   const at = now.toISOString();
   try {
     await db.execute(sql`
@@ -143,6 +153,7 @@ export async function updateProfile(db: Db, userId: string, input: ProfileInput,
           bio = ${bio === '' ? null : bio}::text,
           avatar_key = ${avatarKey}::text,
           cover_key = ${coverKey}::text,
+          cover_position = ${coverPosition}::smallint,
           username_changed_at = CASE WHEN ${usernameChanged}::boolean THEN ${at}::timestamptz ELSE username_changed_at END
         WHERE id = ${userId}::uuid
         RETURNING id

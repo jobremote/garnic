@@ -48,8 +48,8 @@ describe('ver perfil', () => {
   it('devolve só o que é público', async () => {
     const { username } = await verifiedAccount();
     const profile = await getPublicProfile(db, username);
-    expect(profile).toMatchObject({ name: 'Ana Souza', username, bio: null, avatarKey: null, coverKey: null });
-    expect(Object.keys(profile!).sort()).toEqual(['avatarKey', 'bio', 'coverKey', 'id', 'name', 'username']);
+    expect(profile).toMatchObject({ name: 'Ana Souza', username, bio: null, avatarKey: null, coverKey: null, coverPosition: 50 });
+    expect(Object.keys(profile!).sort()).toEqual(['avatarKey', 'bio', 'coverKey', 'coverPosition', 'id', 'name', 'username']);
   });
 
   it('conta que não validou o e-mail e @usuário inexistente não têm perfil', async () => {
@@ -186,6 +186,43 @@ describe('editar perfil', () => {
     const removed = await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'Oi', avatarKey: null }, T0);
     expect(removed).toMatchObject({ ok: true, replacedKeys: ['avatars/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jpg'] });
     expect((await getPublicProfile(db, username))?.avatarKey).toBeNull();
+  });
+});
+
+describe('enquadramento da capa', () => {
+  const COVER = 'covers/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.png';
+  const NEW_COVER = 'covers/cccccccc-cccc-cccc-cccc-cccccccccccc.png';
+
+  it('começa no centro (50) e salva o enquadramento de 0 a 100', async () => {
+    const { id, username } = await verifiedAccount();
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(50);
+    expect((await updateProfile(db, id, { name: 'Ana Souza', username, bio: '', coverKey: COVER, coverPosition: 20 }, T0)).ok).toBe(true);
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(20);
+    for (const edge of [0, 100]) {
+      expect((await updateProfile(db, id, { name: 'Ana Souza', username, bio: '', coverPosition: edge }, T0)).ok).toBe(true);
+    }
+  });
+
+  it('valor fora de 0 a 100 ou não inteiro é recusado e nada é gravado', async () => {
+    const { id, username } = await verifiedAccount();
+    for (const coverPosition of [-1, 101, 33.5, Number.NaN]) {
+      const result = await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'não grava', coverPosition }, T0);
+      expect(result).toMatchObject({ ok: false, errors: { coverPosition: expect.any(String) } });
+    }
+    expect((await getPublicProfile(db, username))?.bio).toBeNull();
+  });
+
+  it('salvar outra coisa mantém o enquadramento; trocar a capa sem ajustar volta ao centro; ajustar a nova vale', async () => {
+    const { id, username } = await verifiedAccount();
+    await updateProfile(db, id, { name: 'Ana Souza', username, bio: '', coverKey: COVER, coverPosition: 80 }, T0);
+    await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'só a bio' }, T0);
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(80);
+    await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'só a bio', coverKey: NEW_COVER }, T0);
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(50);
+    await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'só a bio', coverKey: null }, T0);
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(50);
+    await updateProfile(db, id, { name: 'Ana Souza', username, bio: 'só a bio', coverKey: COVER, coverPosition: 10 }, T0);
+    expect((await getPublicProfile(db, username))?.coverPosition).toBe(10);
   });
 });
 

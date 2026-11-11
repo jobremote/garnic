@@ -153,7 +153,18 @@
 
 /* A capa do modal é mais baixa que a do perfil (120 px, como no protótipo). Classe repetida para vencer a do sistema. */
 .coverPreview.coverPreview {
-  height: 120px;
+  height: auto;
+  aspect-ratio: 26 / 5; /* mesma proporção da capa do perfil no computador: o enquadramento escolhido aqui é o que aparece lá */
+}
+
+/* Arrastar a imagem na vertical. O dedo não rola o modal enquanto arrasta a capa. */
+.coverDrag {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.coverDrag:active {
+  cursor: grabbing;
 }
 
 .pickRow {

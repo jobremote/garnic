@@ -25,6 +25,8 @@ export const users = pgTable(
     avatarKey: text('avatar_key'),
     /** Chave da imagem de capa no armazenamento (`covers/<uuid>.jpg`). Nulo: capa de cor sólida. */
     coverKey: text('cover_key'),
+    /** Enquadramento vertical da capa, de 0 (topo) a 100 (base). 50 = centro. */
+    coverPosition: smallint('cover_position').notNull().default(50),
     termsAcceptedAt: instant('terms_accepted_at').notNull(),
     createdAt: instant('created_at').notNull().defaultNow(),
   },

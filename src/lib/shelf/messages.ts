@@ -36,6 +36,21 @@ export const shelfMessages = {
   failed: 'Não foi possível concluir. Tente de novo.', // novo
   alreadyHere: 'Esse jogo já está nessa coluna.', // novo
   empty: 'Nenhum jogo aqui ainda.',
+  // Cadastro rápido de vários jogos (botão + de cada coluna)
+  quickAddLabel: (status: ShelfStatus) => `Adicionar jogos em ${STATUS_LABEL[status]}`, // novo
+  quickAddTitle: (status: ShelfStatus) => `Adicionar em ${STATUS_LABEL[status]}`, // novo
+  quickAddHint: (max: number) => `Escolha quantos jogos quiser (até ${max} por vez). Todos entram nesta coluna.`, // novo
+  quickChosen: 'Jogos escolhidos', // novo
+  quickNone: 'Nenhum jogo escolhido ainda.', // novo
+  quickInclude: 'Incluir', // novo
+  quickIncluded: 'Incluído', // novo
+  quickRemoveChip: 'Tirar da lista', // novo
+  quickFull: (max: number) => `Você chegou a ${max} jogos. Adicione estes e depois escolha mais.`, // novo
+  quickConfirm: (count: number) => (count === 1 ? 'Adicionar 1 jogo' : `Adicionar ${count} jogos`), // novo
+  quickAdded: (count: number) => (count === 1 ? '1 jogo adicionado' : `${count} jogos adicionados`), // novo
+  quickAddedText: (status: ShelfStatus, skipped: number) =>
+    `Entraram em ${STATUS_LABEL[status]}.${skipped > 0 ? ` ${skipped === 1 ? '1 já estava' : `${skipped} já estavam`} na sua Game Shelf e não mudou de coluna.` : ''}`, // novo
+  quickAllExisting: 'Esses jogos já estão na sua Game Shelf', // novo
   // Adicionar e detalhar
   addAndDetail: 'Adicionar e detalhar', // novo
   // Menu do card

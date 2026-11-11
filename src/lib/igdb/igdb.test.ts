@@ -125,6 +125,15 @@ describe('searchGames', () => {
     expect(await make(empty.fn).getGame(123)).toBeNull();
   });
 
+  it('getGames busca vários jogos numa só consulta, sem repetidos nem ids inválidos', async () => {
+    const { fn, calls } = fakeFetch({ games: () => json([{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 9 }]) });
+    const games = await make(fn).getGames([1, 2, 2, -4, 1.5, 3]);
+    expect(games.map((g) => g.name)).toEqual(['A', 'B']);
+    expect(calls.filter((c) => c.url.endsWith('/games'))).toHaveLength(1);
+    expect(String(calls[1].init?.body)).toContain('where id = (1,2,3); limit 3;');
+    expect(await make(fakeFetch().fn).getGames([])).toEqual([]);
+  });
+
   it('getTimeToBeat converte segundos em minutos e devolve nulo sem dado', async () => {
     const { fn, calls } = fakeFetch({ games: () => json([{ id: 1, hastily: 36000, normally: 54030, completely: 0 }]) });
     expect(await make(fn).getTimeToBeat(5)).toEqual({ hastily: 600, normally: 901, completely: null });

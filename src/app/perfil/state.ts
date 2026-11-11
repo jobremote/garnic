@@ -2,7 +2,7 @@
 export interface EditProfileState {
   /** Texto devolvido para o formulário não perder o que a pessoa digitou depois de um erro. */
   values: { name: string; username: string; bio: string };
-  errors: Partial<Record<'name' | 'username' | 'bio' | 'avatar' | 'cover' | 'form', string>>;
+  errors: Partial<Record<'name' | 'username' | 'bio' | 'avatar' | 'cover' | 'coverPosition' | 'form', string>>;
 }
 
 export const initialEditProfileState = (values: EditProfileState['values']): EditProfileState => ({ values, errors: {} });

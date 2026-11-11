@@ -1,7 +1,7 @@
 'use client';
 
-import { startTransition, useActionState, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Avatar, Button, Cover, Icon, Modal, TextArea, TextField } from 'nogasds';
+import { startTransition, useActionState, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Avatar, Button, Cover, Icon, IconButton, Modal, TextArea, TextField } from 'nogasds';
 import { messages } from '@/lib/auth/messages';
 import { checkName, usernameError } from '@/lib/auth/validation';
 import { IMAGE_ACCEPT, IMAGE_MAX_BYTES, type ProfileImageKind as ImageKind } from '@/lib/profile/images';
@@ -20,6 +20,8 @@ export interface EditProfileProps {
   bio: string;
   avatarUrl?: string;
   coverUrl?: string;
+  /** Enquadramento vertical da capa já salvo (0 a 100). */
+  coverPosition: number;
   /** Mensagem com a data em que o nome volta a poder ser trocado (nome travado), ou `undefined` se já pode. */
   nameLocked?: string;
   usernameLocked?: string;
@@ -80,6 +82,7 @@ function EditForm({
   username,
   avatarUrl,
   coverUrl,
+  coverPosition,
   nameLocked,
   usernameLocked,
   userId,
@@ -115,6 +118,46 @@ function EditForm({
   const shownAvatar = removed.avatar ? undefined : (preview.avatar ?? avatarUrl);
   const shownCover = removed.cover ? undefined : (preview.cover ?? coverUrl);
 
+  // Enquadramento da capa: arrastar a imagem na vertical (ou usar os botões). Guarda só a posição, de 0 (topo) a 100 (base).
+  const [position, setPosition] = useState(coverPosition);
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const coverBox = useRef<HTMLDivElement>(null);
+  const dragging = useRef<{ startY: number; startPosition: number; overflow: number } | null>(null);
+  useEffect(() => {
+    if (!shownCover) return;
+    const image = new Image();
+    image.onload = () => setNatural({ width: image.naturalWidth, height: image.naturalHeight });
+    image.src = shownCover;
+    return () => {
+      image.onload = null;
+    };
+  }, [shownCover]);
+  const clampPosition = (value: number) => Math.min(100, Math.max(0, Math.round(value)));
+  /** Quanto da imagem sobra para cima e para baixo da faixa visível, em pixels (a imagem preenche a faixa). */
+  const overflowPx = () => {
+    const box = coverBox.current;
+    if (!box || !natural) return 0;
+    const scale = Math.max(box.clientWidth / natural.width, box.clientHeight / natural.height);
+    return Math.max(0, natural.height * scale - box.clientHeight);
+  };
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId); // o arrastar continua mesmo com o dedo fora da faixa
+    } catch {
+      // sem captura (ponteiro já encerrado): o arrastar segue só dentro da faixa
+    }
+    dragging.current = { startY: event.clientY, startPosition: position, overflow: overflowPx() };
+  };
+  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragging.current;
+    if (!drag || drag.overflow <= 0) return;
+    // Puxar a imagem para baixo mostra mais o topo (posição menor).
+    setPosition(clampPosition(drag.startPosition - ((event.clientY - drag.startY) / drag.overflow) * 100));
+  };
+  const endDrag = () => {
+    dragging.current = null;
+  };
+
   const pick = (kind: ImageKind, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -133,6 +176,7 @@ function EditForm({
     }
     setPreview((previous) => ({ ...previous, [kind]: URL.createObjectURL(file) }));
     setRemoved((previous) => ({ ...previous, [kind]: false }));
+    if (kind === 'cover') setPosition(50); // imagem nova: começa no centro
   };
 
   const remove = (kind: ImageKind) => {
@@ -140,6 +184,7 @@ function EditForm({
     if (input) input.value = '';
     setPreview((previous) => ({ ...previous, [kind]: null }));
     setRemoved((previous) => ({ ...previous, [kind]: true }));
+    if (kind === 'cover') setPosition(50);
     setFileErrors((previous) => ({ ...previous, [kind]: undefined }));
     setConfirming(null);
   };
@@ -210,7 +255,25 @@ function EditForm({
 
           <fieldset className={styles.group}>
             <legend className={styles.groupLabel}>{profileMessages.cover}</legend>
-            <Cover className={styles.coverPreview} src={shownCover} placeholder={!shownCover && Boolean(coverUrl || preview.cover)} />
+            {/* Arrastar a imagem na vertical muda o enquadramento; nos botões, o mesmo em passos de 5. */}
+            <div
+              ref={coverBox}
+              className={shownCover ? styles.coverDrag : undefined}
+              onPointerDown={shownCover ? startDrag : undefined}
+              onPointerMove={shownCover ? moveDrag : undefined}
+              onPointerUp={shownCover ? endDrag : undefined}
+              onPointerCancel={shownCover ? endDrag : undefined}
+            >
+              <Cover className={styles.coverPreview} src={shownCover} positionY={position} placeholder={!shownCover && Boolean(coverUrl || preview.cover)} />
+            </div>
+            {shownCover ? (
+              <div className={styles.pickRow}>
+                <IconButton icon="keyboard-arrow-up" label={`${profileMessages.coverPositionLabel}: ${profileMessages.coverPositionTop}`} variant="outline" size="sm" onClick={() => setPosition((value) => clampPosition(value - 5))} disabled={position <= 0} />
+                <IconButton icon="keyboard-arrow-down" label={`${profileMessages.coverPositionLabel}: ${profileMessages.coverPositionBottom}`} variant="outline" size="sm" onClick={() => setPosition((value) => clampPosition(value + 5))} disabled={position >= 100} />
+                <p className={styles.hint}>{profileMessages.coverPositionHint}</p>
+              </div>
+            ) : null}
+            {shownCover ? <input type="hidden" name="coverPosition" value={position} /> : null}
             <div className={styles.pickRow}>
               <Button type="button" variant="outline" size="sm" disabled={!canUpload} onClick={() => coverInput.current?.click()}>
                 {profileMessages.changeCover}

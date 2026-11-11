@@ -88,13 +88,19 @@
 
 @media (max-width: 640px) {
   /* Celular: colunas lado a lado, com rolagem para o lado. */
+  /* Carrossel: a lista encaixa de coluna em coluna e o dedo rola com inércia. */
   .kanban {
     display: flex;
     overflow-x: auto;
     padding-bottom: var(--nds-space-inset-sm);
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .kanban > * {
-    flex: 0 0 256px;
+    flex: 0 0 min(280px, 84vw);
+    scroll-snap-align: start;
   }
 }
 
@@ -299,4 +305,25 @@
   letter-spacing: var(--nds-type-body-tracking);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* "Gerenciar tags" fica embaixo do kanban. */
+.manageRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Tela de toque: segurar o card para arrastar não pode abrir o menu do sistema nem selecionar texto. */
+@media (pointer: coarse) {
+  .card {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .card[data-dragging] {
+    opacity: 0.35;
+  }
+  .dropTarget {
+    scroll-snap-align: none;
+  }
 }

@@ -82,7 +82,7 @@ export function ProfileView({
       <TopBars viewer={viewer} />
       <main className={styles.content}>
         <header className={styles.head}>
-          <Cover src={mediaUrl(profile.coverKey)} />
+          <Cover src={mediaUrl(profile.coverKey)} positionY={profile.coverPosition} />
           <section className={styles.identity} aria-label="Perfil">
             <div className={styles.identityRow}>
               <Avatar name={profile.name} src={mediaUrl(profile.avatarKey)} size="lg" />
@@ -100,6 +100,7 @@ export function ProfileView({
                     uploadMode={storageMode()}
                     avatarUrl={mediaUrl(profile.avatarKey)}
                     coverUrl={mediaUrl(profile.coverKey)}
+                    coverPosition={profile.coverPosition}
                     nameLocked={locks?.nameUnlocksAt ? t.nameLocked(locks.nameUnlocksAt) : undefined}
                     usernameLocked={locks?.usernameUnlocksAt ? t.usernameLocked(locks.usernameUnlocksAt) : undefined}
                   />

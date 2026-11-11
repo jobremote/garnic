@@ -69,6 +69,33 @@ export async function addToShelf(db: Db, userId: string, game: IgdbGame, status:
   return { ok: true, entryId: existing.id, status: existing.status as ShelfStatus, alreadyOnShelf: true, gameName: saved.name };
 }
 
+/** Quantos jogos entram de uma vez no cadastro rápido. */
+export const QUICK_ADD_MAX = 20;
+
+export type AddManyResult =
+  | { ok: true; added: string[]; alreadyOnShelf: string[] }
+  | { ok: false; error: 'invalid-status' | 'too-many' | 'empty' };
+
+/**
+ * Cadastro rápido: põe vários jogos de uma vez na mesma coluna. Cada jogo segue a regra de sempre (uma entrada por
+ * jogo por pessoa): quem já está na Game Shelf **não muda de coluna** e vai para `alreadyOnShelf`. Os jogos entram na
+ * ordem em que foram escolhidos (o primeiro escolhido fica no topo da coluna).
+ */
+export async function addManyToShelf(db: Db, userId: string, gamesToAdd: IgdbGame[], status: unknown, now = new Date()): Promise<AddManyResult> {
+  if (!isShelfStatus(status)) return { ok: false, error: 'invalid-status' };
+  if (gamesToAdd.length === 0) return { ok: false, error: 'empty' };
+  if (gamesToAdd.length > QUICK_ADD_MAX) return { ok: false, error: 'too-many' };
+  const added: string[] = [];
+  const alreadyOnShelf: string[] = [];
+  for (const [index, game] of gamesToAdd.entries()) {
+    // Um milissegundo a menos para cada jogo seguinte: a ordem escolhida vira a ordem na coluna.
+    const result = await addToShelf(db, userId, game, status, new Date(now.getTime() - index));
+    if (!result.ok) return { ok: false, error: 'invalid-status' };
+    (result.alreadyOnShelf ? alreadyOnShelf : added).push(result.gameName);
+  }
+  return { ok: true, added, alreadyOnShelf };
+}
+
 export type MoveResult =
   | { ok: true; status: ShelfStatus; changed: boolean; gameName: string }
   | { ok: false; error: 'invalid-status' | 'not-found' };

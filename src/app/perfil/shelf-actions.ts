@@ -14,7 +14,7 @@ import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
 import { getPublicEntry, reportScreenshot, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
 import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
-import { addToShelf, moveEntry, statusByIgdbId } from '@/lib/shelf/shelf';
+import { addManyToShelf, addToShelf, moveEntry, QUICK_ADD_MAX, statusByIgdbId } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
 
 /** Um resultado de busca, já pronto para a tela. Nada aqui vai para o banco: ao adicionar, o servidor busca o jogo de novo no IGDB. */
@@ -95,6 +95,33 @@ export async function addGameAction(igdbId: number, status: string): Promise<Add
   if (!result.ok) return { ok: false, error: 'invalid' };
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, entryId: result.entryId, gameName: result.gameName, status: result.status, alreadyOnShelf: result.alreadyOnShelf };
+}
+
+export type AddGamesResult =
+  | { ok: true; status: ShelfStatus; added: string[]; alreadyOnShelf: string[] }
+  | { ok: false; error: 'not-configured' | 'unavailable' | 'not-found' | 'invalid' | 'too-many' };
+
+/** Cadastro rápido: vários jogos de uma vez na mesma coluna. O servidor busca todos no IGDB (uma consulta só). */
+export async function addGamesAction(igdbIds: unknown, status: string): Promise<AddGamesResult> {
+  const user = await requireUser();
+  if (!Array.isArray(igdbIds) || !igdbIds.every((id) => Number.isSafeInteger(id)) || !isShelfStatus(status)) return { ok: false, error: 'invalid' };
+  const ids = [...new Set(igdbIds as number[])];
+  if (ids.length === 0) return { ok: false, error: 'invalid' };
+  if (ids.length > QUICK_ADD_MAX) return { ok: false, error: 'too-many' };
+  let found: IgdbGame[];
+  try {
+    found = await getIgdbClient().getGames(ids);
+  } catch (error) {
+    return failure(error);
+  }
+  // A resposta do IGDB pode vir em outra ordem: volta para a ordem escolhida. Id que o IGDB não conhece é ignorado.
+  const byId = new Map(found.map((game) => [game.igdbId, game]));
+  const ordered = ids.flatMap((id) => (byId.has(id) ? [byId.get(id) as IgdbGame] : []));
+  if (ordered.length === 0) return { ok: false, error: 'not-found' };
+  const result = await addManyToShelf(await getDb(), user.id, ordered, status);
+  if (!result.ok) return { ok: false, error: result.error === 'too-many' ? 'too-many' : 'invalid' };
+  revalidatePath('/perfil/[username]', 'page');
+  return { ok: true, status, added: result.added, alreadyOnShelf: result.alreadyOnShelf };
 }
 
 export type MoveGameResult =
