@@ -4,9 +4,10 @@ import { startTransition, useEffect, useOptimistic, useState, type DragEvent } f
 import { BoardColumn, Icon, IconButton, ItemCard, Menu, MenuOption, Toast, type ToastProps } from 'nogasds';
 import { shelfMessages as t } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
-import { addGameAction, moveGameAction, type GameResult } from '../shelf-actions';
+import { addGameAction, moveGameAction, removeEntryAction, type GameResult } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
+import { EntryModal, RemoveEntryModal } from './EntryModal';
 
 /** Um card do kanban, já com o que a tela precisa (nada de dados do banco que não deva ir ao navegador). */
 export interface ShelfCardData {
@@ -24,9 +25,16 @@ interface Notice {
   text?: string;
 }
 
+/** Janela aberta sobre o kanban: no máximo uma por vez. */
+type Dialog =
+  | { kind: 'edit'; entryId: string }
+  | { kind: 'zeroed'; entryId: string }
+  | { kind: 'remove'; entryId: string; name: string }
+  | null;
+
 const NOTICE_MS = 6000;
 
-/** Game Shelf do perfil: kanban de 4 colunas, mover por menu ou arrastando (só no próprio perfil) e adicionar jogo. */
+/** Game Shelf do perfil: kanban de 4 colunas, mover por menu ou arrastando (só no próprio perfil), adicionar, editar e remover. */
 export function GameShelf({ columns, own, title }: { columns: ShelfData; own: boolean; title: string }) {
   const [board, moveOptimistically] = useOptimistic(columns, (state: ShelfData, move: { entryId: string; status: ShelfStatus }) => {
     const next = { ...state };
@@ -45,6 +53,7 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
   const [session, setSession] = useState(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
   const [dragging, setDragging] = useState<{ entryId: string; from: ShelfStatus } | null>(null);
   const [over, setOver] = useState<ShelfStatus | null>(null);
 
@@ -59,7 +68,13 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
     setSession((value) => value + 1); // recria o modal: a próxima busca começa do zero
   };
 
-  const add = (game: GameResult, status: ShelfStatus) => {
+  /** Jogo que já está na Game Shelf: abre a entrada existente (sem duplicar). */
+  const openExisting = (entryId: string) => {
+    closeAdd();
+    setDialog({ kind: 'edit', entryId });
+  };
+
+  const add = (game: GameResult, status: ShelfStatus, detail: boolean) => {
     setSaving(true);
     startTransition(async () => {
       const result = await addGameAction(game.igdbId, status);
@@ -69,11 +84,15 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
         return;
       }
       closeAdd();
-      setNotice(
-        result.alreadyOnShelf
-          ? { variant: 'info', title: t.alreadyOnShelf, text: t.alreadyOnShelfText(result.gameName, result.status) }
-          : { variant: 'success', title: t.added, text: t.addedText(result.gameName, result.status) },
-      );
+      if (result.alreadyOnShelf) {
+        setNotice({ variant: 'info', title: t.alreadyOnShelf, text: t.alreadyOnShelfText(result.gameName, result.status) });
+        if (detail) setDialog({ kind: 'edit', entryId: result.entryId });
+        return;
+      }
+      setNotice({ variant: 'success', title: t.added, text: t.addedText(result.gameName, result.status) });
+      // Escolheu "Adicionar e detalhar": abre a edição. Entrou direto em Zerado: convida a contar mais (tudo opcional).
+      if (detail) setDialog({ kind: 'edit', entryId: result.entryId });
+      else if (result.status === 'zerado') setDialog({ kind: 'zeroed', entryId: result.entryId });
     });
   };
 
@@ -82,9 +101,36 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
     startTransition(async () => {
       moveOptimistically({ entryId, status });
       const result = await moveGameAction(entryId, status);
+      if (!result.ok) {
+        setNotice({ variant: 'error', title: t.failed });
+        return;
+      }
+      setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status) });
+      // Mover para Zerado conclui na hora; o pop-up que convida a contar mais é opcional.
+      if (result.changed && result.status === 'zerado') setDialog({ kind: 'zeroed', entryId });
+    });
+  };
+
+  const onSaved = (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => {
+    const wasZeroedPopup = dialog?.kind === 'zeroed';
+    const entryId = dialog && dialog.kind !== 'remove' ? dialog.entryId : null;
+    setNotice({ variant: 'success', title: t.saved, text: t.savedText(result.gameName) });
+    setDialog(null);
+    // Mudou para Zerado pela edição: o pop-up opcional também aparece (a não ser que ele mesmo acabou de salvar).
+    if (!wasZeroedPopup && result.statusChanged && result.status === 'zerado' && entryId) setDialog({ kind: 'zeroed', entryId });
+  };
+
+  const confirmRemove = () => {
+    if (dialog?.kind !== 'remove') return;
+    const { entryId } = dialog;
+    setSaving(true);
+    startTransition(async () => {
+      const result = await removeEntryAction(entryId);
+      setSaving(false);
+      setDialog(null);
       setNotice(
         result.ok
-          ? { variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status) }
+          ? { variant: 'success', title: t.removed, text: t.removedText(result.gameName) }
           : { variant: 'error', title: t.failed },
       );
     });
@@ -144,6 +190,12 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
                         {t.moveTo(value)}
                       </MenuOption>
                     ))}
+                    <MenuOption icon="edit" onClick={() => setDialog({ kind: 'edit', entryId: card.entryId })}>
+                      {t.editEntry}
+                    </MenuOption>
+                    <MenuOption icon="close" danger onClick={() => setDialog({ kind: 'remove', entryId: card.entryId, name: card.name })}>
+                      {t.removeEntry}
+                    </MenuOption>
                   </Menu>
                 ) : null}
               </div>
@@ -152,7 +204,23 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
         ))}
       </div>
 
-      {own ? <AddGameModal key={session} open={adding} onClose={closeAdd} onAdd={add} pending={saving} /> : null}
+      {own ? (
+        <AddGameModal key={session} open={adding} onClose={closeAdd} onAdd={add} onOpenExisting={openExisting} pending={saving} />
+      ) : null}
+
+      {own && dialog && dialog.kind !== 'remove' ? (
+        <EntryModal
+          key={`${dialog.kind}-${dialog.entryId}`}
+          mode={dialog.kind}
+          entryId={dialog.entryId}
+          onClose={() => setDialog(null)}
+          onSaved={onSaved}
+          onRemove={(entryId, name) => setDialog({ kind: 'remove', entryId, name })}
+        />
+      ) : null}
+      {own && dialog?.kind === 'remove' ? (
+        <RemoveEntryModal name={dialog.name} pending={saving} onCancel={() => setDialog({ kind: 'edit', entryId: dialog.entryId })} onConfirm={confirmRemove} />
+      ) : null}
 
       {notice ? (
         <div className={styles.toast}>

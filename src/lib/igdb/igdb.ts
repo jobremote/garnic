@@ -59,6 +59,32 @@ export function toIgdbGame(raw: RawGame): IgdbGame | null {
   };
 }
 
+interface RawTimeToBeat {
+  hastily?: number;
+  normally?: number;
+  completely?: number;
+}
+
+/** Estimativas de tempo para zerar, em minutos. Cada uma pode faltar. */
+export interface TimeToBeat {
+  /** Só a história principal, sem extras. */
+  hastily: number | null;
+  /** História com alguns extras. */
+  normally: number | null;
+  /** 100%. */
+  completely: number | null;
+}
+
+const toMinutes = (seconds: unknown): number | null =>
+  typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : null;
+
+/** O IGDB manda segundos; a tela usa minutos. Sem nenhuma das três, não há dado (`null`). */
+export function toTimeToBeat(raw: RawTimeToBeat | undefined): TimeToBeat | null {
+  if (!raw) return null;
+  const time = { hastily: toMinutes(raw.hastily), normally: toMinutes(raw.normally), completely: toMinutes(raw.completely) };
+  return time.hastily || time.normally || time.completely ? time : null;
+}
+
 export type CoverSize = 'cover_small' | 'cover_big' | 'thumb' | 'micro';
 
 /** Endereço da capa. Use `retina` para o dobro de resolução (telas com DPR 2). */
@@ -168,6 +194,16 @@ export function createIgdbClient(options: IgdbClientOptions) {
       if (!Number.isSafeInteger(igdbId) || igdbId <= 0) return null;
       const raw = (await post('games', `fields ${GAME_FIELDS}; where id = ${igdbId}; limit 1;`)) as RawGame[];
       return raw[0] ? toIgdbGame(raw[0]) : null;
+    },
+
+    /**
+     * As 3 estimativas de tempo do IGDB (`game_time_to_beats`), em minutos. Devolve `null` quando o jogo não tem dado
+     * (a cobertura é irregular): nesse caso a tela não mostra nada, nem zero.
+     */
+    async getTimeToBeat(igdbId: number): Promise<TimeToBeat | null> {
+      if (!Number.isSafeInteger(igdbId) || igdbId <= 0) return null;
+      const raw = (await post('game_time_to_beats', `fields hastily,normally,completely; where game_id = ${igdbId}; limit 1;`)) as RawTimeToBeat[];
+      return toTimeToBeat(raw[0]);
     },
   };
 }

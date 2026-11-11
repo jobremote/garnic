@@ -146,8 +146,8 @@ describe('resultados da busca já na estante', () => {
     await addToShelf(db, userId, game(40), 'zerado', T0);
     await addToShelf(db, userId, game(41), 'quero-jogar', T0);
     const map = await statusByIgdbId(db, userId, [40, 41, 42]);
-    expect(map.get(40)).toBe('zerado');
-    expect(map.get(41)).toBe('quero-jogar');
+    expect(map.get(40)).toMatchObject({ status: 'zerado', entryId: expect.any(String) });
+    expect(map.get(41)?.status).toBe('quero-jogar');
     expect(map.has(42)).toBe(false);
     expect((await statusByIgdbId(db, userId, [])).size).toBe(0);
   });

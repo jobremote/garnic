@@ -117,16 +117,16 @@ export async function getShelf(db: Db, userId: string): Promise<ShelfColumns> {
   return columns;
 }
 
-/** Entre estes jogos do IGDB, em que coluna cada um já está na estante da pessoa (para marcar os resultados da busca). */
-export async function statusByIgdbId(db: Db, userId: string, igdbIds: number[]): Promise<Map<number, ShelfStatus>> {
-  const result = new Map<number, ShelfStatus>();
+/** Entre estes jogos do IGDB, a entrada que a pessoa já tem de cada um (coluna e id), para marcar os resultados da busca. */
+export async function statusByIgdbId(db: Db, userId: string, igdbIds: number[]): Promise<Map<number, { status: ShelfStatus; entryId: string }>> {
+  const result = new Map<number, { status: ShelfStatus; entryId: string }>();
   if (igdbIds.length === 0) return result;
   const rows = await db
-    .select({ igdbId: games.igdbId, status: shelfEntries.status })
+    .select({ igdbId: games.igdbId, status: shelfEntries.status, entryId: shelfEntries.id })
     .from(shelfEntries)
     .innerJoin(games, eq(games.id, shelfEntries.gameId))
     .where(and(eq(shelfEntries.userId, userId), inArray(games.igdbId, igdbIds)));
-  for (const row of rows) if (isShelfStatus(row.status)) result.set(row.igdbId, row.status);
+  for (const row of rows) if (isShelfStatus(row.status)) result.set(row.igdbId, { status: row.status, entryId: row.entryId });
   return result;
 }
 
@@ -138,14 +138,14 @@ export interface ShelfCounters {
 }
 
 /**
- * Contadores do perfil. "Zerados no ano" conta as entradas em Zerado cuja data de conclusão cai no ano corrente;
- * enquanto a data de fim não existe (entrega 2), a data é a de entrada em Zerado. Backlog = jogos em Quero jogar.
+ * Contadores do perfil. "Zerados no ano" conta as entradas em Zerado cuja data de conclusão cai no ano corrente:
+ * o ano da data de fim, se informada, senão o ano em que a entrada foi para Zerado. Backlog = jogos em Quero jogar.
  */
 export async function shelfCounters(db: Db, userId: string, now = new Date()): Promise<ShelfCounters> {
   const year = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(now));
   const [row] = await db
     .select({
-      zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado' and extract(year from ${shelfEntries.statusChangedAt} at time zone 'America/Sao_Paulo') = ${year})::int`,
+      zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado' and coalesce(${shelfEntries.endedYear}::int, extract(year from ${shelfEntries.statusChangedAt} at time zone 'America/Sao_Paulo')::int) = ${year})::int`,
       backlog: sql<number>`count(*) filter (where ${shelfEntries.status} = 'quero-jogar')::int`,
     })
     .from(shelfEntries)

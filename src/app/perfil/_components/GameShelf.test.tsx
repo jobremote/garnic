@@ -8,6 +8,9 @@ const actions = vi.hoisted(() => ({
   searchGamesAction: vi.fn(),
   addGameAction: vi.fn(),
   moveGameAction: vi.fn(),
+  openEntryAction: vi.fn(),
+  saveEntryAction: vi.fn(),
+  removeEntryAction: vi.fn(),
 }));
 vi.mock('../shelf-actions', () => actions);
 
@@ -39,6 +42,8 @@ describe('Game Shelf: mover', () => {
   it('o menu "Mover para" leva o card para a coluna escolhida e avisa', async () => {
     // A ação fica pendente até o teste liberar: enquanto isso o card já aparece na coluna nova (atualização otimista).
     // Na tela real, depois da ação o servidor reenvia a estante e o estado passa a vir das props.
+    // Zerado abre o pop-up opcional, que busca a entrada.
+    actions.openEntryAction.mockResolvedValue({ ok: true, entry: { entryId: '11111111-1111-4111-8111-111111111111', status: 'zerado', platform: null, rating: null, review: null, reviewSpoiler: false, started: { month: null, year: null }, ended: { month: null, year: null }, playMinutes: null, gameName: 'Celeste', year: '2018', platforms: [] }, timeToBeat: null });
     let finish: (value: unknown) => void = () => {};
     actions.moveGameAction.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     const user = userEvent.setup();

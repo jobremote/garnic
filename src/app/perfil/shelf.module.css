@@ -97,3 +97,110 @@
     flex: 0 0 256px;
   }
 }
+
+/* Editar entrada e pop-up do Zerado */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+  padding-top: var(--nds-space-inset-lg);
+}
+.panel[hidden] {
+  display: none;
+}
+.gameHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--nds-space-gap-md);
+}
+.gameCover {
+  flex: none;
+  width: 48px;
+  height: 64px;
+  overflow: hidden;
+  background: var(--nds-surface-sunken);
+}
+.gameCover > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gameName {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+}
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+}
+.fieldLabel {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+.fieldError {
+  margin: 0;
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-status-danger-fg);
+}
+.ratingRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nds-space-gap-md);
+}
+.igdbTimes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+  padding: var(--nds-space-inset-lg);
+  border: var(--nds-stroke-default) solid var(--nds-border-subtle);
+  background: var(--nds-surface-sunken);
+}
+.timesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nds-space-gap-xl);
+  margin: 0;
+}
+.timesList > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-xs);
+}
+.timesList dt {
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-secondary);
+}
+.timesList dd {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+}
+/* Rodapé da edição: "Remover" à esquerda, Cancelar e Salvar à direita (empilha no celular). */
+.entryFooter {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nds-space-gap-md);
+}
+.entryFooterEnd {
+  display: flex;
+  gap: var(--nds-space-gap-md);
+}
+@media (max-width: 640px) {
+  .entryFooter {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .entryFooterEnd > * {
+    flex: 1 1 0;
+  }
+}
