@@ -1,4 +1,5 @@
-import { boolean, index, integer, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 const instant = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -206,6 +207,39 @@ export const shelfEntries = pgTable(
   ],
 );
 
+/**
+ * Tag do usuário na Game Shelf: nome e cor (neutral, wine, petrol, olive, rose, sky). São da pessoa e separadas das
+ * categorias do IGDB. O nome é único por pessoa sem diferenciar maiúsculas de minúsculas.
+ */
+export const tags = pgTable(
+  'tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('neutral'),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('tags_user_name_key').on(table.userId, sql`lower(${table.name})`)],
+);
+
+/** Tags de uma entrada. Excluir a tag (ou a entrada) remove só a associação; o jogo continua na Game Shelf. */
+export const shelfEntryTags = pgTable(
+  'shelf_entry_tags',
+  {
+    entryId: uuid('entry_id')
+      .notNull()
+      .references(() => shelfEntries.id, { onDelete: 'cascade' }),
+    tagId: uuid('tag_id')
+      .notNull()
+      .references(() => tags.id, { onDelete: 'cascade' }),
+  },
+  (table) => [primaryKey({ columns: [table.entryId, table.tagId] }), index('shelf_entry_tags_tag_idx').on(table.tagId)],
+);
+
 export type User = typeof users.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
 export type Game = typeof games.$inferSelect;
 export type ShelfEntry = typeof shelfEntries.$inferSelect;

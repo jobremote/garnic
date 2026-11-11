@@ -17,6 +17,8 @@ export function parseEntryInput(raw: unknown): EntryInput {
   if ('reviewSpoiler' in data) input.reviewSpoiler = data.reviewSpoiler === true;
   if ('started' in data) input.started = parseMonthYear(data.started);
   if ('ended' in data) input.ended = parseMonthYear(data.ended);
+  // A lista de tags passa como veio: `checkTagIds` confere formato, dono e limite.
+  if ('tagIds' in data) input.tagIds = data.tagIds;
   if ('playMinutes' in data) input.playMinutes = data.playMinutes === null ? null : typeof data.playMinutes === 'number' ? data.playMinutes : Number.NaN;
   return input;
 }

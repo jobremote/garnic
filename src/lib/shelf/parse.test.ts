@@ -40,6 +40,13 @@ describe('parseEntryInput', () => {
     expect(parseEntryInput(undefined)).toEqual({});
   });
 
+  it('a lista de tags passa adiante para ser conferida (inclusive o que não é lista)', () => {
+    expect(parseEntryInput({ tagIds: ['a', 'b'] })).toEqual({ tagIds: ['a', 'b'] });
+    expect(parseEntryInput({ tagIds: [] })).toEqual({ tagIds: [] });
+    expect(parseEntryInput({ tagIds: 'texto' })).toEqual({ tagIds: 'texto' });
+    expect(parseEntryInput({ rating: 3 })).not.toHaveProperty('tagIds'); // ausente continua ausente
+  });
+
   it('reviewSpoiler só é verdadeiro com true de verdade', () => {
     expect(parseEntryInput({ reviewSpoiler: 'true' })).toEqual({ reviewSpoiler: false });
   });

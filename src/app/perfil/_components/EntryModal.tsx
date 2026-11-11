@@ -19,11 +19,12 @@ import { REVIEW_MAX } from '@/lib/shelf/entry';
 import { shelfMessages as t } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
 import type { TimeToBeat } from '@/lib/igdb/igdb';
-import { openEntryAction, saveEntryAction, type EntryView } from '../shelf-actions';
+import { openEntryAction, saveEntryAction, type EntryView, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
+import { EntryTagsField } from './EntryTagsField';
 
 type TabValue = 'essential' | 'playthrough' | 'review';
-type FieldErrors = Partial<Record<'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes', string>>;
+type FieldErrors = Partial<Record<'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags', string>>;
 
 /** O que a pessoa está editando. Fica aqui, e não no servidor, até clicar em Salvar. */
 interface Draft {
@@ -35,6 +36,7 @@ interface Draft {
   started: MonthYearValue;
   ended: MonthYearValue;
   time: DurationValue;
+  tagIds: string[];
 }
 
 const toDraft = (entry: EntryView): Draft => ({
@@ -43,6 +45,7 @@ const toDraft = (entry: EntryView): Draft => ({
   platform: entry.platform ?? '',
   review: entry.review ?? '',
   spoiler: entry.reviewSpoiler,
+  tagIds: entry.tagIds,
   started: entry.started,
   ended: entry.ended,
   time:
@@ -70,10 +73,14 @@ export interface EntryModalProps {
   onSaved: (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => void;
   /** Pedido de remover (só no modo `edit`). */
   onRemove?: (entryId: string, gameName: string) => void;
+  /** Todas as tags da pessoa (para escolher as do jogo). */
+  tags: TagData[];
+  /** Uma tag criada no "+ Nova tag": o pai a inclui na lista. */
+  onTagCreated: (tag: TagData) => void;
 }
 
 /** Editar a entrada em 3 abas e o pop-up do Zerado (Figma: Editar entrada e Pop-up Zerado). */
-export function EntryModal({ mode, entryId, onClose, onSaved, onRemove }: EntryModalProps) {
+export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, onTagCreated }: EntryModalProps) {
   const [loaded, setLoaded] = useState<{ entry: EntryView; timeToBeat: TimeToBeat | null } | 'failed' | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -105,6 +112,8 @@ export function EntryModal({ mode, entryId, onClose, onSaved, onRemove }: EntryM
       onClose={onClose}
       onSaved={onSaved}
       onRemove={onRemove}
+      tags={tags}
+      onTagCreated={onTagCreated}
     />
   );
 }
@@ -119,7 +128,7 @@ interface EntryFormProps extends Omit<EntryModalProps, 'entryId'> {
   title: string;
 }
 
-function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose, onSaved, onRemove }: EntryFormProps) {
+function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose, onSaved, onRemove, tags, onTagCreated }: EntryFormProps) {
   const [tab, setTab] = useState<TabValue>('essential');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -149,6 +158,7 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
             platform: draft.platform === '' ? null : draft.platform,
             review: draft.review,
             reviewSpoiler: draft.spoiler,
+            tagIds: draft.tagIds,
             started: draft.started,
             ended: draft.ended,
             // O tempo só se informa em Zerado; fora dele o valor salvo é mantido, sem mexer.
@@ -161,8 +171,8 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
     setErrors(result.errors);
     // Leva para a primeira aba que tem erro.
     if (mode === 'edit') {
-      const { status, rating, platform, review, started, ended, playMinutes } = result.errors;
-      if (status || rating || platform) setTab('essential');
+      const { status, rating, platform, review, started, ended, playMinutes, tags: tagsError } = result.errors;
+      if (status || rating || platform || tagsError) setTab('essential');
       else if (started || ended || playMinutes) setTab('playthrough');
       else if (review) setTab('review');
     }
@@ -247,7 +257,7 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
               value={tab}
               onChange={(value) => setTab(value as TabValue)}
               items={[
-                { value: 'essential', label: t.tabEssential, controls: panel('essential'), filled: draft.rating !== null || draft.platform !== '', filledLabel: t.filledTab },
+                { value: 'essential', label: t.tabEssential, controls: panel('essential'), filled: draft.rating !== null || draft.platform !== '' || draft.tagIds.length > 0, filledLabel: t.filledTab },
                 {
                   value: 'playthrough',
                   label: t.tabPlaythrough,
@@ -291,6 +301,13 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
                   </option>
                 ))}
               </Select>
+              <EntryTagsField
+                tags={tags}
+                value={draft.tagIds}
+                onChange={(tagIds) => setDraft({ tagIds })}
+                onTagCreated={onTagCreated}
+                error={errors.tags}
+              />
             </Panel>
 
             <Panel id={panel('playthrough')} tabId={`${base}-tabs-playthrough`} hidden={tab !== 'playthrough'}>

@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { games, shelfEntries } from '@/lib/db/schema';
 import { isShelfStatus, type ShelfStatus } from './status';
+import { checkTagIds, replaceEntryTags, tagsByEntry } from './tags';
 
 /** Edição da entrada da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
 
@@ -24,6 +25,8 @@ export interface EntryDetails {
   started: MonthYear;
   ended: MonthYear;
   playMinutes: number | null;
+  /** Ids das tags da entrada. */
+  tagIds: string[];
   game: { id: string; igdbId: number; name: string; releasedAt: Date | null; coverImageId: string | null; platforms: string[] };
 }
 
@@ -36,7 +39,9 @@ export async function getEntry(db: Db, userId: string, entryId: string): Promise
     .limit(1);
   if (!row || !isShelfStatus(row.entry.status)) return null;
   const { entry, game } = row;
+  const entryTags = (await tagsByEntry(db, [entry.id])).get(entry.id) ?? [];
   return {
+    tagIds: entryTags.map((tag) => tag.id),
     entryId: entry.id,
     status: entry.status as ShelfStatus,
     platform: entry.platform,
@@ -63,9 +68,11 @@ export interface EntryInput {
   started?: MonthYear;
   ended?: MonthYear;
   playMinutes?: number | null;
+  /** Lista completa de tags da entrada (substitui a atual). Ausente: mantém. */
+  tagIds?: unknown;
 }
 
-export type EntryField = 'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes';
+export type EntryField = 'status' | 'rating' | 'platform' | 'review' | 'started' | 'ended' | 'playMinutes' | 'tags';
 export type EntryErrorCode =
   | 'invalid-status'
   | 'invalid-rating'
@@ -75,7 +82,9 @@ export type EntryErrorCode =
   | 'date-invalid'
   | 'date-future'
   | 'end-before-start'
-  | 'invalid-time';
+  | 'invalid-time'
+  | 'invalid-tags'
+  | 'too-many-tags';
 
 export type UpdateEntryResult =
   | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean }
@@ -163,6 +172,13 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
     else errors.playMinutes = 'invalid-time';
   }
 
+  let tagIds: string[] | null = null;
+  if (input.tagIds !== undefined) {
+    const checked = await checkTagIds(db, userId, input.tagIds);
+    if (checked.ok) tagIds = checked.ids;
+    else errors.tags = checked.error;
+  }
+
   if (Object.keys(errors).length > 0) return { ok: false, error: 'invalid', errors };
 
   const statusChanged = status !== current.status;
@@ -173,6 +189,7 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
   if (Object.keys(set).length > 0) {
     await db.update(shelfEntries).set(set).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
   }
+  if (tagIds !== null) await replaceEntryTags(db, entryId, tagIds);
   return { ok: true, gameName: current.game.name, status, statusChanged };
 }
 

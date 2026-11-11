@@ -3,6 +3,7 @@ import type { Db } from '@/lib/db/connect';
 import { games, shelfEntries, type Game } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { isShelfStatus, SHELF_STATUSES, type ShelfStatus } from './status';
+import { tagsByEntry, type TagView } from './tags';
 
 /** Regras da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
 
@@ -11,6 +12,8 @@ export interface ShelfCard {
   status: ShelfStatus;
   statusChangedAt: Date;
   game: Pick<Game, 'id' | 'igdbId' | 'name' | 'slug' | 'coverImageId' | 'releasedAt' | 'platforms'>;
+  /** Tags do jogo nesta estante, em ordem alfabética. */
+  tags: TagView[];
 }
 
 export type ShelfColumns = Record<ShelfStatus, ShelfCard[]>;
@@ -112,8 +115,11 @@ export async function getShelf(db: Db, userId: string): Promise<ShelfColumns> {
     .innerJoin(games, eq(games.id, shelfEntries.gameId))
     .where(eq(shelfEntries.userId, userId))
     .orderBy(desc(shelfEntries.statusChangedAt), desc(shelfEntries.createdAt));
+  const entryTags = await tagsByEntry(db, rows.map((row) => row.entryId));
   const columns = emptyColumns();
-  for (const row of rows) if (isShelfStatus(row.status)) columns[row.status].push({ ...row, status: row.status });
+  for (const row of rows) {
+    if (isShelfStatus(row.status)) columns[row.status].push({ ...row, status: row.status, tags: entryTags.get(row.entryId) ?? [] });
+  }
   return columns;
 }
 

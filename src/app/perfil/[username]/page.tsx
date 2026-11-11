@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { getEditLocks, getPublicProfile } from '@/lib/profile/profile';
 import { getShelf, shelfCounters } from '@/lib/shelf/shelf';
+import { listTags } from '@/lib/shelf/tags';
 import { ProfileView } from '../_components/ProfileView';
 
 export const metadata: Metadata = { title: 'Perfil' };
@@ -20,8 +21,8 @@ async function Profile({ params }: { params: Promise<{ username: string }> }) {
   if (!profile) notFound();
 
   const locks = viewer.id === profile.id ? await getEditLocks(db, viewer.id) : null;
-  const [shelf, counters] = await Promise.all([getShelf(db, profile.id), shelfCounters(db, profile.id)]);
-  return <ProfileView viewer={viewer} profile={profile} locks={locks} shelf={shelf} counters={counters} />;
+  const [shelf, counters, tags] = await Promise.all([getShelf(db, profile.id), shelfCounters(db, profile.id), listTags(db, profile.id)]);
+  return <ProfileView viewer={viewer} profile={profile} locks={locks} shelf={shelf} counters={counters} tags={tags} />;
 }
 
 export default function ProfilePage({ params }: PageProps<'/perfil/[username]'>) {

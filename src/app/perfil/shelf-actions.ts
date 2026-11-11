@@ -6,7 +6,8 @@ import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { coverUrl, getIgdbClient, IgdbError, type IgdbGame, type TimeToBeat } from '@/lib/igdb/igdb';
 import { getEntry, REVIEW_MAX, removeEntry, updateEntry, type EntryErrorCode, type EntryField, type MonthYear } from '@/lib/shelf/entry';
-import { entryErrorMessages } from '@/lib/shelf/messages';
+import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
+import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
 import { addToShelf, moveEntry, statusByIgdbId } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
@@ -116,6 +117,7 @@ export interface EntryView {
   started: MonthYear;
   ended: MonthYear;
   playMinutes: number | null;
+  tagIds: string[];
   gameName: string;
   year: string;
   coverUrl?: string;
@@ -152,6 +154,7 @@ export async function openEntryAction(entryId: string): Promise<OpenEntryResult>
       started: entry.started,
       ended: entry.ended,
       playMinutes: entry.playMinutes,
+      tagIds: entry.tagIds,
       gameName: entry.game.name,
       year: entry.game.releasedAt ? String(entry.game.releasedAt.getUTCFullYear()) : '',
       coverUrl: coverUrl(entry.game.coverImageId, 'cover_small'),
@@ -195,4 +198,61 @@ export async function removeEntryAction(entryId: string): Promise<RemoveGameResu
   if (!result.ok) return { ok: false };
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, gameName: result.gameName };
+}
+
+/** Uma tag para a tela (com a quantidade de jogos, só nas listas). */
+export interface TagData {
+  id: string;
+  name: string;
+  color: TagColor;
+  gameCount: number;
+}
+
+export type SaveTagResult =
+  | { ok: true; tag: TagData }
+  | { ok: false; error: 'not-found' }
+  | { ok: false; error: 'invalid'; errors: Partial<Record<'name' | 'color' | 'form', string>> };
+
+const tagErrorText = (code: TagErrorCode) => {
+  const message = tagErrorMessages[code];
+  if (typeof message !== 'function') return message;
+  return code === 'too-many-tags' ? message(MAX_TAGS_PER_USER) : message(TAG_NAME_MAX);
+};
+
+function tagFailure(result: Extract<TagResult, { ok: false }>): Extract<SaveTagResult, { ok: false }> {
+  if (result.error === 'not-found') return { ok: false, error: 'not-found' };
+  const errors: Partial<Record<'name' | 'color' | 'form', string>> = {};
+  for (const [field, code] of Object.entries(result.errors) as ['name' | 'color' | 'form', TagErrorCode][]) errors[field] = tagErrorText(code);
+  return { ok: false, error: 'invalid', errors };
+}
+
+/** Cria uma tag de quem está logado (Gerenciar tags e o "+ Nova tag" da edição da entrada). */
+export async function createTagAction(name: unknown, color: unknown): Promise<SaveTagResult> {
+  const user = await requireUser();
+  const result = await createTag(await getDb(), user.id, { name: typeof name === 'string' ? name : '', color });
+  if (!result.ok) return tagFailure(result);
+  revalidatePath('/perfil/[username]', 'page');
+  return { ok: true, tag: { ...result.tag, gameCount: 0 } };
+}
+
+/** Muda nome e cor de uma tag. */
+export async function updateTagAction(tagId: string, name: unknown, color: unknown): Promise<SaveTagResult> {
+  const user = await requireUser();
+  if (typeof tagId !== 'string' || !/^[0-9a-f-]{36}$/i.test(tagId)) return { ok: false, error: 'not-found' };
+  const result = await updateTag(await getDb(), user.id, tagId, { name: typeof name === 'string' ? name : '', color });
+  if (!result.ok) return tagFailure(result);
+  revalidatePath('/perfil/[username]', 'page');
+  return { ok: true, tag: { ...result.tag, gameCount: 0 } };
+}
+
+export type DeleteTagActionResult = { ok: true; name: string } | { ok: false };
+
+/** Exclui a tag: sai só a associação, os jogos continuam na Game Shelf. */
+export async function deleteTagAction(tagId: string): Promise<DeleteTagActionResult> {
+  const user = await requireUser();
+  if (typeof tagId !== 'string' || !/^[0-9a-f-]{36}$/i.test(tagId)) return { ok: false };
+  const result = await deleteTag(await getDb(), user.id, tagId);
+  if (!result.ok) return { ok: false };
+  revalidatePath('/perfil/[username]', 'page');
+  return { ok: true, name: result.name };
 }
