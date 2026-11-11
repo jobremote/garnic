@@ -1,13 +1,14 @@
 'use client';
 
 import { startTransition, useEffect, useOptimistic, useState, type DragEvent } from 'react';
-import { BoardColumn, Icon, IconButton, ItemCard, Menu, MenuOption, Toast, type ToastProps } from 'nogasds';
-import { shelfMessages as t } from '@/lib/shelf/messages';
+import { BoardColumn, Button, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
+import { shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
-import { addGameAction, moveGameAction, removeEntryAction, type GameResult } from '../shelf-actions';
+import { addGameAction, moveGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
 import { EntryModal, RemoveEntryModal } from './EntryModal';
+import { ManageTagsModal } from './ManageTagsModal';
 
 /** Um card do kanban, já com o que a tela precisa (nada de dados do banco que não deva ir ao navegador). */
 export interface ShelfCardData {
@@ -15,6 +16,8 @@ export interface ShelfCardData {
   name: string;
   detail: string;
   coverUrl?: string;
+  /** Tags do jogo (id, nome e cor). */
+  tags: { id: string; name: string; color: TagColor }[];
 }
 
 export type ShelfData = Record<ShelfStatus, ShelfCardData[]>;
@@ -35,7 +38,17 @@ type Dialog =
 const NOTICE_MS = 6000;
 
 /** Game Shelf do perfil: kanban de 4 colunas, mover por menu ou arrastando (só no próprio perfil), adicionar, editar e remover. */
-export function GameShelf({ columns, own, title }: { columns: ShelfData; own: boolean; title: string }) {
+export function GameShelf({ columns, own, title, tags: tagsProp }: { columns: ShelfData; own: boolean; title: string; tags: TagData[] }) {
+  // Lista de tags: vem do servidor e muda na hora quando a pessoa cria, edita ou exclui (o servidor reenvia depois).
+  const [seenTags, setSeenTags] = useState(tagsProp);
+  const [tagList, setTagList] = useState(tagsProp);
+  if (seenTags !== tagsProp) {
+    setSeenTags(tagsProp);
+    setTagList(tagsProp);
+  }
+  const [filterTag, setFilterTag] = useState('');
+  const [managing, setManaging] = useState(false);
+
   const [board, moveOptimistically] = useOptimistic(columns, (state: ShelfData, move: { entryId: string; status: ShelfStatus }) => {
     const next = { ...state };
     let card: ShelfCardData | undefined;
@@ -136,6 +149,15 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
     });
   };
 
+  // Filtro por uma tag por vez. Tag excluída deixa de filtrar. Nome e cor dos cards vêm da lista viva de tags.
+  const activeFilter = tagList.some((tag) => tag.id === filterTag) ? filterTag : '';
+  const visible = (status: ShelfStatus) => board[status].filter((card) => !activeFilter || card.tags.some((tag) => tag.id === activeFilter));
+  const cardTags = (card: ShelfCardData) =>
+    card.tags.flatMap((tag) => {
+      const live = tagList.find((item) => item.id === tag.id);
+      return live ? [{ label: live.name, color: live.color }] : [];
+    });
+
   const onDrop = (event: DragEvent, status: ShelfStatus) => {
     event.preventDefault();
     const drag = dragging;
@@ -152,6 +174,25 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
         </h2>
         {own ? <IconButton icon="add" label={t.addGame} variant="outline" size="sm" onClick={() => setAdding(true)} /> : null}
       </div>
+      {tagList.length > 0 || own ? (
+        <div className={styles.toolbar}>
+          {tagList.length > 0 ? (
+            <Select label={tm.filterLabel} placeholder={null} value={activeFilter} onChange={(event) => setFilterTag(event.target.value)}>
+              <option value="">{tm.filterAll}</option>
+              {tagList.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+          {own ? (
+            <Button variant="outline" onClick={() => setManaging(true)}>
+              {tm.manageTags}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {/* Rolagem para o lado no celular: a região precisa receber foco para quem usa só o teclado. */}
       <div className={styles.kanban} role="region" aria-label={title} tabIndex={0}>
         {SHELF_STATUSES.map((status) => (
@@ -159,13 +200,13 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
             key={status}
             className={over === status && dragging?.from !== status ? styles.dropTarget : undefined}
             title={STATUS_LABEL[status]}
-            count={board[status].length}
-            emptyMessage={over === status && dragging?.from !== status ? t.dropHere : t.empty}
+            count={visible(status).length}
+            emptyMessage={over === status && dragging?.from !== status ? t.dropHere : activeFilter ? tm.filterEmpty : t.empty}
             onDragOver={own && dragging ? (event) => { event.preventDefault(); setOver(status); } : undefined}
             onDragLeave={own ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null); } : undefined}
             onDrop={own ? (event) => onDrop(event, status) : undefined}
           >
-            {board[status].map((card) => (
+            {visible(status).map((card) => (
               <div
                 key={card.entryId}
                 className={styles.card}
@@ -178,7 +219,7 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
                 } : undefined}
                 onDragEnd={own ? () => { setDragging(null); setOver(null); } : undefined}
               >
-                <ItemCard title={card.name} detail={card.detail || undefined} thumbnail={card.coverUrl} />
+                <ItemCard title={card.name} detail={card.detail || undefined} thumbnail={card.coverUrl} tags={cardTags(card)} />
                 {own ? (
                   <Menu
                     className={styles.cardMenu}
@@ -216,6 +257,22 @@ export function GameShelf({ columns, own, title }: { columns: ShelfData; own: bo
           onClose={() => setDialog(null)}
           onSaved={onSaved}
           onRemove={(entryId, name) => setDialog({ kind: 'remove', entryId, name })}
+          tags={tagList}
+          onTagCreated={(tag) => setTagList((list) => (list.some((item) => item.id === tag.id) ? list : [...list, tag]))}
+        />
+      ) : null}
+      {own && managing ? (
+        <ManageTagsModal
+          tags={tagList}
+          onClose={() => setManaging(false)}
+          onSaved={(tag, created) => {
+            setTagList((list) => (created ? [...list, tag] : list.map((item) => (item.id === tag.id ? tag : item))));
+            setNotice({ variant: 'success', title: created ? tm.tagCreated : tm.tagSaved, text: created ? tm.tagCreatedText(tag.name) : undefined });
+          }}
+          onDeleted={(tag) => {
+            setTagList((list) => list.filter((item) => item.id !== tag.id));
+            setNotice({ variant: 'success', title: tm.tagDeleted, text: tm.tagDeletedText(tag.name) });
+          }}
         />
       ) : null}
       {own && dialog?.kind === 'remove' ? (

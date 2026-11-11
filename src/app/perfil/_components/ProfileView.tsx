@@ -8,6 +8,7 @@ import { formatDate, profileMessages as t } from '@/lib/profile/messages';
 import type { EditLocks, PublicProfile } from '@/lib/profile/profile';
 import type { ShelfColumns, ShelfCounters } from '@/lib/shelf/shelf';
 import { SHELF_STATUSES } from '@/lib/shelf/status';
+import type { TagData } from '../shelf-actions';
 import { storageMode } from '@/lib/storage';
 import styles from '../profile.module.css';
 import { EditProfile } from './EditProfile';
@@ -22,6 +23,7 @@ function toShelfData(shelf: ShelfColumns): ShelfData {
       name: card.game.name,
       detail: card.game.releasedAt ? String(card.game.releasedAt.getUTCFullYear()) : '',
       coverUrl: coverUrl(card.game.coverImageId, 'cover_small'),
+      tags: card.tags,
     }));
   }
   return data;
@@ -63,12 +65,15 @@ export function ProfileView({
   locks,
   shelf,
   counters,
+  tags,
 }: {
   viewer: CurrentUser;
   profile: PublicProfile;
   locks: EditLocks | null;
   shelf: ShelfColumns;
   counters: ShelfCounters;
+  /** Tags da pessoa do perfil (para o filtro; só quem é dona também as edita). */
+  tags: TagData[];
 }) {
   const own = viewer.id === profile.id;
 
@@ -125,7 +130,7 @@ export function ProfileView({
         </header>
 
         <section className={styles.section} aria-labelledby="game-shelf">
-          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} />
+          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} tags={tags} />
         </section>
 
         <section className={styles.section} aria-labelledby="posts">

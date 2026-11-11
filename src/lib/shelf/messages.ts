@@ -96,4 +96,50 @@ export const entryErrorMessages = {
   'date-future': 'Essa data ainda não chegou.',
   'end-before-start': 'O fim não pode ser antes do início.',
   'invalid-time': 'Informe um tempo maior que zero.',
+  'invalid-tags': 'Escolha tags que existam na sua conta.', // novo
+  'too-many-tags': 'Cada jogo pode ter até 5 tags.', // novo
+} as const;
+
+/** Textos de tags (decisão de 11/11/2026: nome até 24 caracteres, 30 tags por pessoa, 5 por jogo). */
+export const tagMessages = {
+  tagsLabel: 'Tags',
+  tagsNone: 'Nenhuma tag neste jogo.', // novo
+  newTag: 'Nova tag',
+  newTagPlus: '+ Nova tag',
+  tagNameLabel: 'Nome da tag', // novo
+  tagNameHint: (count: number, max: number) => `${count}/${max} caracteres.`, // novo
+  tagColorLabel: 'Cor',
+  tagPreview: 'Pré-visualização', // novo
+  create: 'Criar tag', // novo
+  saveTag: 'Salvar tag', // novo
+  editTag: 'Editar tag',
+  deleteTag: 'Excluir tag',
+  manageTags: 'Gerenciar tags',
+  manageTagsEmpty: 'Você ainda não criou nenhuma tag.', // novo
+  tagGames: (count: number) => (count === 1 ? '1 jogo' : `${count} jogos`),
+  tagsCounter: (count: number, max: number) => `${count} de ${max} tags.`, // novo
+  filterLabel: 'Filtrar por tag', // novo
+  filterAll: 'Todos os jogos', // novo
+  filterEmpty: 'Nenhum jogo com essa tag.',
+  deleteTitle: 'Excluir tag?', // novo
+  deleteText: (name: string, games: number) =>
+    games > 0
+      ? `A tag ${name} sai de ${games === 1 ? '1 jogo' : `${games} jogos`}. Os jogos continuam na sua Game Shelf.`
+      : `A tag ${name} será excluída.`, // novo
+  tagCreated: 'Tag criada', // novo
+  tagCreatedText: (name: string) => `A tag ${name} está pronta para usar.`, // novo
+  tagSaved: 'Tag salva', // novo
+  tagDeleted: 'Tag excluída', // novo
+  tagDeletedText: (name: string) => `A tag ${name} foi excluída. Os jogos continuam na Game Shelf.`, // novo
+  maxPerEntry: (max: number) => `Até ${max} tags por jogo.`, // novo
+  closeManage: 'Fechar', // novo
+} as const;
+
+/** Mensagem de cada erro de validação de tag (`src/lib/shelf/tags.ts`). */
+export const tagErrorMessages = {
+  'name-required': 'Dê um nome à tag.', // novo
+  'name-too-long': (max: number) => `O nome pode ter até ${max} caracteres.`, // novo
+  'name-taken': 'Você já tem uma tag com esse nome.', // novo
+  'invalid-color': 'Escolha uma das cores.', // novo
+  'too-many-tags': (max: number) => `Você já tem ${max} tags. Exclua uma para criar outra.`, // novo
 } as const;

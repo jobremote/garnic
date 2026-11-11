@@ -43,6 +43,13 @@
       "when": 1794407783723,
       "tag": "0005_game_shelf_entrada",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794416275063,
+      "tag": "0006_game_shelf_tags",
+      "breakpoints": true
     }
   ]
 }
