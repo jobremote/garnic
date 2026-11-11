@@ -50,6 +50,13 @@
       "when": 1794416275063,
       "tag": "0006_game_shelf_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794419347440,
+      "tag": "0007_game_shelf_screenshots",
+      "breakpoints": true
     }
   ]
 }

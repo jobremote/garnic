@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   checkImage,
   detectImageExt,
+  IMAGE_FOLDER,
   IMAGE_KEY_PATTERN,
   IMAGE_MAX_BYTES,
   isRemoteRef,
@@ -32,7 +33,7 @@ const root = () => path.join(process.cwd(), '.data', 'uploads');
 
 export async function saveLocalImage(kind: ImageKind, bytes: Uint8Array, ext: ImageExt): Promise<string> {
   if (storageMode() !== 'local') throw new Error('O armazenamento local só existe em desenvolvimento.');
-  const key = `${kind === 'avatar' ? 'avatars' : 'covers'}/${randomUUID()}.${ext}`;
+  const key = `${IMAGE_FOLDER[kind]}/${randomUUID()}.${ext}`;
   const file = path.join(root(), key);
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, bytes);

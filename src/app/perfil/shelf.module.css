@@ -246,3 +246,57 @@
   align-items: center;
   gap: var(--nds-space-gap-sm);
 }
+
+/* Ver a entrada (todas as pessoas) e screenshot */
+.cardOpen {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cardOpen:focus-visible {
+  outline: var(--nds-stroke-focus) solid var(--nds-focus-ring);
+  outline-offset: calc(var(--nds-stroke-focus) * -1);
+}
+.cardMenu {
+  z-index: 1;
+}
+.viewShot {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: var(--nds-surface-sunken);
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nds-space-gap-xl);
+  margin: 0;
+}
+.facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-xs);
+}
+.facts dt {
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-secondary);
+}
+.facts dd {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+}
+.reviewText {
+  margin: 0;
+  padding: var(--nds-space-inset-lg);
+  font: var(--nds-type-body);
+  letter-spacing: var(--nds-type-body-tracking);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

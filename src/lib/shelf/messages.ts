@@ -64,7 +64,7 @@ export const shelfMessages = {
   timeComplete: '100%', // novo
   reviewLabel: 'Review',
   reviewCounter: (count: number, max: number) => `${count}/${max} caracteres.`, // novo
-  reviewSpoiler: 'Contém spoiler', // novo
+  reviewSpoiler: 'A review contém spoiler', // novo
   reviewSpoilerHint: 'O texto fica escondido atrás de um clique.', // novo
   save: 'Salvar',
   cancel: 'Cancelar',
@@ -98,6 +98,42 @@ export const entryErrorMessages = {
   'invalid-time': 'Informe um tempo maior que zero.',
   'invalid-tags': 'Escolha tags que existam na sua conta.', // novo
   'too-many-tags': 'Cada jogo pode ter até 5 tags.', // novo
+  'invalid-screenshot': 'Não foi possível usar essa imagem. Envie outra.', // novo
+} as const;
+
+/** Screenshot da entrada e denúncia (decisões de 11/11/2026: até 5 MB, JPG, PNG ou WebP; a denúncia só registra). */
+export const screenshotMessages = {
+  label: 'Screenshot', // novo
+  help: (max: string) => `JPG, PNG ou WebP, até ${max}. Uma por jogo, visível para quem vê seu perfil.`, // novo
+  alt: (game: string) => `Screenshot de ${game}`, // novo
+  spoiler: 'Contém spoiler',
+  spoilerCheckbox: 'A screenshot contém spoiler', // novo
+  spoilerHint: 'A imagem fica desfocada até alguém clicar em Mostrar.', // novo
+  tooBig: (max: string) => `A imagem pode ter até ${max}.`, // novo
+  wrongType: 'Use uma imagem JPG, PNG ou WebP.', // novo
+  uploadFailed: 'Não foi possível enviar a imagem. Tente de novo.', // novo
+  uploadUnavailable: 'O envio de imagens ainda não está disponível neste ambiente.', // novo
+  // Ver a entrada de um jogo
+  viewEntry: 'Ver entrada', // novo
+  viewTitle: 'Entrada', // novo
+  noDetails: 'Nenhum detalhe preenchido ainda.', // novo
+  reviewTitle: 'Review', // novo
+  platform: 'Plataforma', // novo
+  period: 'Período', // novo
+  playTime: 'Tempo de jogo', // novo
+  rating: 'Nota', // novo
+  // Denúncia
+  report: 'Denunciar screenshot', // novo
+  reportTitle: 'Denunciar screenshot', // novo
+  reportText: 'Conte o motivo. A denúncia é registrada para revisão; a imagem continua visível até lá.', // novo
+  reasonLabel: 'Motivo', // novo
+  reasons: { inappropriate: 'Conteúdo inadequado', spam: 'Spam', spoiler: 'Spoiler sem aviso', other: 'Outro motivo' }, // novo
+  detailsLabel: 'Detalhes (opcional)', // novo
+  send: 'Enviar denúncia', // novo
+  reported: 'Denúncia enviada', // novo
+  reportedText: 'Obrigado. Vamos analisar.', // novo
+  alreadyReported: 'Você já denunciou essa imagem.', // novo
+  reportFailed: 'Não foi possível enviar a denúncia. Tente de novo.', // novo
 } as const;
 
 /** Textos de tags (decisão de 11/11/2026: nome até 24 caracteres, 30 tags por pessoa, 5 por jogo). */

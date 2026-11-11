@@ -11,6 +11,9 @@ const actions = vi.hoisted(() => ({
   openEntryAction: vi.fn(),
   saveEntryAction: vi.fn(),
   removeEntryAction: vi.fn(),
+  discardScreenshotAction: vi.fn(),
+  viewEntryAction: vi.fn(),
+  reportScreenshotAction: vi.fn(),
 }));
 vi.mock('../shelf-actions', () => actions);
 
@@ -52,7 +55,7 @@ describe('Game Shelf: pop-up do Zerado', () => {
     actions.moveGameAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', changed: true });
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ status: 'zerado' }), timeToBeat: { hastily: 480, normally: 600, completely: 1500 } });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await moveToZeroed(user);
 
     expect(await within(dialog).findByText('Celeste está em Zerado.')).toBeInTheDocument();
@@ -70,7 +73,7 @@ describe('Game Shelf: pop-up do Zerado', () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ status: 'zerado' }), timeToBeat: null });
     actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: false });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await moveToZeroed(user);
 
     await within(dialog).findByText('Celeste está em Zerado.'); // espera a entrada carregar
@@ -95,7 +98,7 @@ describe('Game Shelf: editar a entrada', () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
     actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
 
     expect((await within(dialog).findAllByRole('tab')).map((tab) => tab.textContent)).toEqual(['Essencial', 'Jogatina', 'Review']);
@@ -108,7 +111,7 @@ describe('Game Shelf: editar a entrada', () => {
     expect(within(dialog).queryByRole('group', { name: 'Tempo de jogo' })).toBeNull();
     await user.click(within(dialog).getByRole('tab', { name: /Review/ }));
     await user.type(within(dialog).getByRole('textbox', { name: /Review/ }), 'Obra-prima');
-    await user.click(within(dialog).getByRole('checkbox', { name: 'Contém spoiler' }));
+    await user.click(within(dialog).getByRole('checkbox', { name: 'A review contém spoiler' }));
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     expect(actions.saveEntryAction).toHaveBeenCalledWith(ID, {
@@ -127,7 +130,7 @@ describe('Game Shelf: editar a entrada', () => {
   it('aba com algo preenchido ganha o ponto', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ review: 'Já escrevi', rating: 3 }), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
     expect(within(dialog).getByRole('tab', { name: /Essencial/ })).toHaveTextContent('preenchida');
     expect(within(dialog).getByRole('tab', { name: /Review/ })).toHaveTextContent('preenchida');
@@ -137,7 +140,7 @@ describe('Game Shelf: editar a entrada', () => {
   it('em Zerado a aba Jogatina mostra o tempo de jogo', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ status: 'zerado' }), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
     await user.click(within(dialog).getByRole('tab', { name: /Jogatina/ }));
     expect(within(dialog).getByRole('group', { name: 'Tempo de jogo' })).toBeInTheDocument();
@@ -147,7 +150,7 @@ describe('Game Shelf: editar a entrada', () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
     actions.saveEntryAction.mockResolvedValue({ ok: false, error: 'invalid', errors: { ended: 'O fim não pode ser antes do início.' } });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(await within(dialog).findByText('O fim não pode ser antes do início.')).toBeVisible();
@@ -158,7 +161,7 @@ describe('Game Shelf: editar a entrada', () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
     actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: true });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
     await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'Zerado');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -170,7 +173,7 @@ describe('Game Shelf: remover', () => {
   it('pede confirmação, explica o que sai e remove', async () => {
     actions.removeEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste' });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Ações de Celeste' }));
     await user.click(screen.getByRole('menuitem', { name: 'Remover da Game Shelf' }));
 
@@ -185,7 +188,7 @@ describe('Game Shelf: remover', () => {
   it('cancelar não remove', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await user.click(screen.getByRole('button', { name: 'Ações de Celeste' }));
     await user.click(screen.getByRole('menuitem', { name: 'Remover da Game Shelf' }));
     const dialog = await screen.findByRole('dialog', { name: 'Remover da Game Shelf?' });
@@ -206,7 +209,7 @@ describe('Game Shelf: adicionar e detalhar', () => {
     actions.addGameAction.mockResolvedValue({ ok: true, entryId: ID, gameName: 'Hades', status: 'quero-jogar', alreadyOnShelf: false });
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ gameName: 'Hades' }), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await search(user);
     await user.click(await screen.findByRole('button', { name: 'Adicionar Hades' }, { timeout: 3000 }));
     await user.click(screen.getByRole('button', { name: 'Adicionar e detalhar' }));
@@ -218,7 +221,7 @@ describe('Game Shelf: adicionar e detalhar', () => {
     actions.addGameAction.mockResolvedValue({ ok: true, entryId: ID, gameName: 'Hades', status: 'zerado', alreadyOnShelf: false });
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ gameName: 'Hades', status: 'zerado' }), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await search(user);
     await user.click(await screen.findByRole('button', { name: 'Adicionar Hades' }, { timeout: 3000 }));
     await user.click(screen.getByRole('radio', { name: /Zerado/ }));
@@ -230,7 +233,7 @@ describe('Game Shelf: adicionar e detalhar', () => {
     actions.searchGamesAction.mockResolvedValue({ ok: true, results: [{ ...found, status: 'jogando', entryId: ID }] });
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ gameName: 'Hades' }), timeToBeat: null });
     const user = userEvent.setup();
-    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} />);
+    render(<GameShelf columns={empty()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     await search(user);
     await user.click(await screen.findByRole('button', { name: 'Editar entrada: Hades' }, { timeout: 3000 }));
     expect(await screen.findByRole('dialog', { name: 'Editar entrada' })).toBeInTheDocument();
