@@ -1,16 +1,18 @@
 'use client';
 
-import { startTransition, useEffect, useOptimistic, useState, type DragEvent } from 'react';
+import { startTransition, useEffect, useOptimistic, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { BoardColumn, Button, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
 import { screenshotMessages as sm, shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
-import { addGameAction, moveGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
+import { addGameAction, addGamesAction, moveGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
 import { EntryModal, RemoveEntryModal } from './EntryModal';
 import { EntryViewModal } from './EntryViewModal';
+import { attachTouchDrag } from './touch-drag';
 import type { UploadMode } from './upload-image';
 import { ManageTagsModal } from './ManageTagsModal';
+import { QuickAddModal } from './QuickAddModal';
 
 /** Um card do kanban, já com o que a tela precisa (nada de dados do banco que não deva ir ao navegador). */
 export interface ShelfCardData {
@@ -40,6 +42,22 @@ type Dialog =
 
 const NOTICE_MS = 6000;
 
+/** Tela de toque (dedo) em vez de mouse: lá o arrastar é por toque longo, e não pelo arrastar nativo do navegador. */
+const COARSE = '(pointer: coarse)';
+function useCoarsePointer(): boolean {
+  const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+  return useSyncExternalStore(
+    (notify) => {
+      if (!supported) return () => {};
+      const query = window.matchMedia(COARSE);
+      query.addEventListener('change', notify);
+      return () => query.removeEventListener('change', notify);
+    },
+    () => (supported ? window.matchMedia(COARSE).matches : false),
+    () => false,
+  );
+}
+
 /** Game Shelf do perfil: kanban de 4 colunas, mover por menu ou arrastando (só no próprio perfil), adicionar, editar e remover. */
 export function GameShelf({
   columns,
@@ -65,7 +83,11 @@ export function GameShelf({
     setTagList(tagsProp);
   }
   const [filterTag, setFilterTag] = useState('');
+  const coarse = useCoarsePointer();
+  const board$ = useRef<HTMLDivElement>(null);
   const [managing, setManaging] = useState(false);
+  /** Coluna do cadastro rápido de vários jogos aberto (botão + do cabeçalho da coluna). */
+  const [quickAdd, setQuickAdd] = useState<ShelfStatus | null>(null);
 
   const [board, moveOptimistically] = useOptimistic(columns, (state: ShelfData, move: { entryId: string; status: ShelfStatus }) => {
     const next = { ...state };
@@ -127,6 +149,24 @@ export function GameShelf({
     });
   };
 
+  const quickAddGames = (status: ShelfStatus, games: GameResult[]) => {
+    setSaving(true);
+    startTransition(async () => {
+      const result = await addGamesAction(games.map((game) => game.igdbId), status);
+      setSaving(false);
+      if (!result.ok) {
+        setNotice({ variant: 'error', title: result.error === 'unavailable' || result.error === 'not-configured' ? t.unavailable : t.failed });
+        return;
+      }
+      setQuickAdd(null);
+      if (result.added.length === 0) {
+        setNotice({ variant: 'info', title: t.quickAllExisting });
+        return;
+      }
+      setNotice({ variant: 'success', title: t.quickAdded(result.added.length), text: t.quickAddedText(result.status, result.alreadyOnShelf.length) });
+    });
+  };
+
   const move = (entryId: string, from: ShelfStatus, status: ShelfStatus) => {
     if (from === status) return;
     startTransition(async () => {
@@ -176,6 +216,27 @@ export function GameShelf({
       return live ? [{ label: live.name, color: live.color }] : [];
     });
 
+  // Celular: segurar o card e arrastar (a lista rola sozinha nas bordas). Sempre com a versão mais nova de `move`.
+  const moveRef = useRef(move);
+  useEffect(() => {
+    moveRef.current = move;
+  });
+  useEffect(() => {
+    const container = board$.current;
+    if (!own || !coarse || !container) return;
+    return attachTouchDrag({
+      container,
+      cardSelector: '[data-entry-id]',
+      onStart: (entryId, from) => setDragging({ entryId, from: from as ShelfStatus }),
+      onOver: (column) => setOver(column as ShelfStatus | null),
+      onDrop: (entryId, from, to) => moveRef.current(entryId, from as ShelfStatus, to as ShelfStatus),
+      onEnd: () => {
+        setDragging(null);
+        setOver(null);
+      },
+    });
+  }, [own, coarse]);
+
   const onDrop = (event: DragEvent, status: ShelfStatus) => {
     event.preventDefault();
     const drag = dragging;
@@ -192,30 +253,25 @@ export function GameShelf({
         </h2>
         {own ? <IconButton icon="add" label={t.addGame} variant="outline" size="sm" onClick={() => setAdding(true)} /> : null}
       </div>
-      {tagList.length > 0 || own ? (
+      {tagList.length > 0 ? (
         <div className={styles.toolbar}>
-          {tagList.length > 0 ? (
-            <Select label={tm.filterLabel} placeholder={null} value={activeFilter} onChange={(event) => setFilterTag(event.target.value)}>
-              <option value="">{tm.filterAll}</option>
-              {tagList.map((tag) => (
-                <option key={tag.id} value={tag.id}>
-                  {tag.name}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-          {own ? (
-            <Button variant="outline" onClick={() => setManaging(true)}>
-              {tm.manageTags}
-            </Button>
-          ) : null}
+          <Select label={tm.filterLabel} placeholder={null} value={activeFilter} onChange={(event) => setFilterTag(event.target.value)}>
+            <option value="">{tm.filterAll}</option>
+            {tagList.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+          </Select>
         </div>
       ) : null}
       {/* Rolagem para o lado no celular: a região precisa receber foco para quem usa só o teclado. */}
-      <div className={styles.kanban} role="region" aria-label={title} tabIndex={0}>
+      <div ref={board$} className={styles.kanban} role="region" aria-label={title} tabIndex={0}>
         {SHELF_STATUSES.map((status) => (
           <BoardColumn
             key={status}
+            data-column={status}
+            action={own ? <IconButton icon="add" label={t.quickAddLabel(status)} variant="ghost" size="md" onClick={() => setQuickAdd(status)} /> : undefined}
             className={over === status && dragging?.from !== status ? styles.dropTarget : undefined}
             title={STATUS_LABEL[status]}
             count={visible(status).length}
@@ -228,8 +284,10 @@ export function GameShelf({
               <div
                 key={card.entryId}
                 className={styles.card}
+                data-entry-id={card.entryId}
+                data-from={status}
                 data-dragging={dragging?.entryId === card.entryId || undefined}
-                draggable={own}
+                draggable={own && !coarse}
                 onDragStart={own ? (event) => {
                   event.dataTransfer.effectAllowed = 'move';
                   event.dataTransfer.setData('text/plain', card.entryId);
@@ -265,6 +323,14 @@ export function GameShelf({
       </div>
 
       {own ? (
+        <div className={styles.manageRow}>
+          <Button variant="outline" onClick={() => setManaging(true)}>
+            {tm.manageTags}
+          </Button>
+        </div>
+      ) : null}
+
+      {own ? (
         <AddGameModal key={session} open={adding} onClose={closeAdd} onAdd={add} onOpenExisting={openExisting} pending={saving} />
       ) : null}
 
@@ -281,6 +347,9 @@ export function GameShelf({
           tags={tagList}
           onTagCreated={(tag) => setTagList((list) => (list.some((item) => item.id === tag.id) ? list : [...list, tag]))}
         />
+      ) : null}
+      {own && quickAdd ? (
+        <QuickAddModal key={quickAdd} status={quickAdd} onClose={() => setQuickAdd(null)} onConfirm={(games) => quickAddGames(quickAdd, games)} pending={saving} />
       ) : null}
       {own && managing ? (
         <ManageTagsModal

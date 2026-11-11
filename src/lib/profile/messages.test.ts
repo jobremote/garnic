@@ -12,11 +12,11 @@ describe('dicas das imagens do perfil', () => {
 
   it('a dica da foto traz o tamanho recomendado e o peso máximo reais', () => {
     expect(profileMessages.avatarHint).toContain('400 × 400 px');
-    expect(profileMessages.avatarHint).toContain('até 2 MB');
+    expect(profileMessages.avatarHint).toContain('até 5 MB');
   });
 
   it('os avisos de peso usam os mesmos limites', () => {
-    expect(profileMessages.avatarTooBig).toBe('A foto pode ter até 2 MB.');
+    expect(profileMessages.avatarTooBig).toBe('A foto pode ter até 5 MB.');
     expect(profileMessages.coverTooBig).toBe('A capa pode ter até 5 MB.');
   });
 });

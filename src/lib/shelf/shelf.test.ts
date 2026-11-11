@@ -5,7 +5,7 @@ import type { Db } from '@/lib/db/connect';
 import { games, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { createTestDb, validSignup } from '@/test/db';
-import { addToShelf, getShelf, moveEntry, shelfCounters, statusByIgdbId } from './shelf';
+import { addManyToShelf, addToShelf, getShelf, moveEntry, QUICK_ADD_MAX, shelfCounters, statusByIgdbId } from './shelf';
 
 const T0 = new Date('2026-11-11T12:00:00.000Z');
 const after = (ms: number) => new Date(T0.getTime() + ms);
@@ -78,6 +78,35 @@ describe('adicionar à Game Shelf', () => {
     await addToShelf(db, userId, { ...game(4, 'Nome novo'), coverImageId: 'novacapa' }, 'parado', T0);
     const [row] = await db.select().from(games).where(eq(games.igdbId, 4));
     expect(row).toMatchObject({ name: 'Nome novo', coverImageId: 'novacapa' });
+  });
+});
+
+describe('cadastro rápido de vários jogos', () => {
+  it('põe todos na mesma coluna, na ordem escolhida (o primeiro fica no topo)', async () => {
+    const userId = await account();
+    const result = await addManyToShelf(db, userId, [game(80, 'Primeiro'), game(81, 'Segundo'), game(82, 'Terceiro')], 'quero-jogar', T0);
+    expect(result).toEqual({ ok: true, added: ['Primeiro', 'Segundo', 'Terceiro'], alreadyOnShelf: [] });
+    expect((await getShelf(db, userId))['quero-jogar'].map((c) => c.game.name)).toEqual(['Primeiro', 'Segundo', 'Terceiro']);
+  });
+
+  it('quem já está na Game Shelf não muda de coluna nem duplica; os outros entram', async () => {
+    const userId = await account();
+    await addToShelf(db, userId, game(90, 'Já tenho'), 'zerado', T0);
+    const result = await addManyToShelf(db, userId, [game(90, 'Já tenho'), game(91, 'Novo')], 'quero-jogar', after(1000));
+    expect(result).toEqual({ ok: true, added: ['Novo'], alreadyOnShelf: ['Já tenho'] });
+    const shelf = await getShelf(db, userId);
+    expect(shelf.zerado.map((c) => c.game.name)).toEqual(['Já tenho']);
+    expect(shelf['quero-jogar'].map((c) => c.game.name)).toEqual(['Novo']);
+  });
+
+  it('status inválido, lista vazia e mais de 20 jogos são recusados, sem gravar nada', async () => {
+    const userId = await account();
+    expect(await addManyToShelf(db, userId, [game(100)], 'quase', T0)).toEqual({ ok: false, error: 'invalid-status' });
+    expect(await addManyToShelf(db, userId, [], 'jogando', T0)).toEqual({ ok: false, error: 'empty' });
+    const many = Array.from({ length: QUICK_ADD_MAX + 1 }, (_, i) => game(200 + i));
+    expect(await addManyToShelf(db, userId, many, 'jogando', T0)).toEqual({ ok: false, error: 'too-many' });
+    expect(Object.values(await getShelf(db, userId)).flat()).toHaveLength(0);
+    expect((await addManyToShelf(db, userId, many.slice(0, QUICK_ADD_MAX), 'jogando', T0)).ok).toBe(true);
   });
 });
 

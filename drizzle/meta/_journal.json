@@ -57,6 +57,13 @@
       "when": 1794419347440,
       "tag": "0007_game_shelf_screenshots",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794425021829,
+      "tag": "0008_capa_posicionavel",
+      "breakpoints": true
     }
   ]
 }

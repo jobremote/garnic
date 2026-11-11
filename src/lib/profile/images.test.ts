@@ -19,7 +19,7 @@ describe('imagens do perfil', () => {
     expect(checkImage('avatar', new TextEncoder().encode('não sou imagem'))).toEqual({ ok: false, reason: 'type' });
   });
 
-  it('avatar até 2 MB e capa até 5 MB', () => {
+  it('avatar, capa e screenshot até 5 MB (avatar subiu de 2 para 5 MB em 12/11/2026)', () => {
     const big = (size: number) => {
       const bytes = new Uint8Array(size);
       bytes.set(jpg);
@@ -27,8 +27,11 @@ describe('imagens do perfil', () => {
     };
     expect(checkImage('avatar', big(IMAGE_MAX_BYTES.avatar))).toEqual({ ok: true, ext: 'jpg' });
     expect(checkImage('avatar', big(IMAGE_MAX_BYTES.avatar + 1))).toEqual({ ok: false, reason: 'size' });
-    expect(checkImage('cover', big(IMAGE_MAX_BYTES.avatar + 1))).toEqual({ ok: true, ext: 'jpg' });
+    expect(IMAGE_MAX_BYTES.avatar).toBe(5 * 1024 * 1024);
+    expect(checkImage('avatar', big(3 * 1024 * 1024))).toEqual({ ok: true, ext: 'jpg' }); // foto do rolo de câmera
+    expect(checkImage('cover', big(IMAGE_MAX_BYTES.cover))).toEqual({ ok: true, ext: 'jpg' });
     expect(checkImage('cover', big(IMAGE_MAX_BYTES.cover + 1))).toEqual({ ok: false, reason: 'size' });
+    expect(checkImage('screenshot', big(IMAGE_MAX_BYTES.screenshot + 1))).toEqual({ ok: false, reason: 'size' });
   });
 
   it('só aceita chaves no formato esperado (sem caminhos fora da pasta)', () => {

@@ -17,6 +17,11 @@ export const profileMessages = {
   coverHint: `Tamanho recomendado: ${cover.width} × ${cover.height} px (proporção 26:5). JPG, PNG ou WebP, até ${mb(IMAGE_MAX_BYTES.cover)}. O centro da imagem aparece em todas as telas.`,
   avatarHint: `Imagem quadrada de ${avatar.width} × ${avatar.height} px ou mais. JPG, PNG ou WebP, até ${mb(IMAGE_MAX_BYTES.avatar)}.`,
   changeCover: 'Trocar capa',
+  coverPositionLabel: 'Enquadramento da capa', // novo
+  coverPositionHint: 'Arraste a imagem para cima ou para baixo, ou use o controle, para escolher o que aparece na capa.', // novo
+  coverPositionInvalid: 'O enquadramento da capa não é válido.', // novo
+  coverPositionTop: 'Topo', // novo
+  coverPositionBottom: 'Base', // novo
   removeCover: 'Remover capa',
   changePhoto: 'Trocar foto',
   removePhoto: 'Remover foto',

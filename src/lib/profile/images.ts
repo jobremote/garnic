@@ -6,8 +6,8 @@ export type ProfileImageKind = 'avatar' | 'cover';
 export type ImageKind = ProfileImageKind | 'screenshot';
 export type ImageExt = 'jpg' | 'png' | 'webp';
 
-/** Limites provisórios (a confirmar com o Leo): avatar até 2 MB, capa até 5 MB. */
-export const IMAGE_MAX_BYTES: Record<ImageKind, number> = { avatar: 2 * 1024 * 1024, cover: 5 * 1024 * 1024, screenshot: 5 * 1024 * 1024 };
+/** Limites: avatar, capa e screenshot até 5 MB (avatar subiu de 2 para 5 MB em 12/11/2026: fotos do rolo de câmera do celular passam de 2 MB). */
+export const IMAGE_MAX_BYTES: Record<ImageKind, number> = { avatar: 5 * 1024 * 1024, cover: 5 * 1024 * 1024, screenshot: 5 * 1024 * 1024 };
 
 /** Tamanho recomendado em pixels (só orientação: a imagem é cortada para caber). */
 export const IMAGE_RECOMMENDED_SIZE: Record<ProfileImageKind, { width: number; height: number }> = {

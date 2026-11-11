@@ -197,6 +197,17 @@ export function createIgdbClient(options: IgdbClientOptions) {
     },
 
     /**
+     * Vários jogos de uma vez pelos ids do IGDB (uma só consulta, para respeitar o limite de pedidos por segundo).
+     * Ids inválidos são ignorados; no máximo 50. A ordem da resposta pode diferir da pedida.
+     */
+    async getGames(igdbIds: number[]): Promise<IgdbGame[]> {
+      const ids = [...new Set(igdbIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 50);
+      if (ids.length === 0) return [];
+      const raw = (await post('games', `fields ${GAME_FIELDS}; where id = (${ids.join(',')}); limit ${ids.length};`)) as RawGame[];
+      return raw.map(toIgdbGame).filter((game): game is IgdbGame => game !== null);
+    },
+
+    /**
      * As 3 estimativas de tempo do IGDB (`game_time_to_beats`), em minutos. Devolve `null` quando o jogo não tem dado
      * (a cobertura é irregular): nesse caso a tela não mostra nada, nem zero.
      */

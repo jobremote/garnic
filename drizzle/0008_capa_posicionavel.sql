@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "cover_position" smallint DEFAULT 50 NOT NULL;
