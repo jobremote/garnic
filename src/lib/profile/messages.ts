@@ -55,7 +55,7 @@ export const profileMessages = {
   report: 'Denunciar',
   followers: 'Seguidores',
   following: 'Seguindo',
-  zeroedThisYear: 'Zerados no ano',
+  zeroed: 'Zerados',
   backlog: 'Backlog',
   gameShelf: 'Game Shelf',
   gameShelfAdd: 'Adicionar jogo',

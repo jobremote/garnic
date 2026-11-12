@@ -102,6 +102,12 @@
     flex: 0 0 min(280px, 84vw);
     scroll-snap-align: start;
   }
+  /* Arrastando um card: sem encaixe. O encaixe obrigatório desfaz a rolagem automática da borda a cada passo, e o
+     carrossel não andava (Samsung S25, Chrome). Ao soltar, o encaixe volta e a lista se ajusta à coluna mais próxima. */
+  .kanban[data-dragging] {
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+  }
 }
 
 /* Editar entrada e pop-up do Zerado */

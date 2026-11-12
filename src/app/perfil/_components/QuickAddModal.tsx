@@ -93,6 +93,7 @@ export function QuickAddModal({ status, onClose, onConfirm, pending }: QuickAddM
           placeholder={t.searchPlaceholder}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onClear={() => setQuery('')}
           autoComplete="off"
           autoFocus
         />

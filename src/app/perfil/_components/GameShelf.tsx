@@ -253,9 +253,17 @@ export function GameShelf({
         </h2>
         {own ? <IconButton icon="add" label={t.addGame} variant="outline" size="sm" onClick={() => setAdding(true)} /> : null}
       </div>
-      {tagList.length > 0 ? (
+      {tagList.length > 0 || own ? (
         <div className={styles.toolbar}>
-          <Select label={tm.filterLabel} placeholder={null} value={activeFilter} onChange={(event) => setFilterTag(event.target.value)}>
+          {/* A dona sempre vê o filtro (desabilitado enquanto não há tags), para ele não parecer sumido. */}
+          <Select
+            label={tm.filterLabel}
+            placeholder={null}
+            value={activeFilter}
+            disabled={tagList.length === 0}
+            helpText={tagList.length === 0 ? tm.filterNoTags : undefined}
+            onChange={(event) => setFilterTag(event.target.value)}
+          >
             <option value="">{tm.filterAll}</option>
             {tagList.map((tag) => (
               <option key={tag.id} value={tag.id}>
@@ -266,7 +274,7 @@ export function GameShelf({
         </div>
       ) : null}
       {/* Rolagem para o lado no celular: a região precisa receber foco para quem usa só o teclado. */}
-      <div ref={board$} className={styles.kanban} role="region" aria-label={title} tabIndex={0}>
+      <div ref={board$} className={styles.kanban} data-dragging={dragging ? '' : undefined} role="region" aria-label={title} tabIndex={0}>
         {SHELF_STATUSES.map((status) => (
           <BoardColumn
             key={status}

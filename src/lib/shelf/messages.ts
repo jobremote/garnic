@@ -172,6 +172,7 @@ export const tagMessages = {
   filterLabel: 'Filtrar por tag', // novo
   filterAll: 'Todos os jogos', // novo
   filterEmpty: 'Nenhum jogo com essa tag.',
+  filterNoTags: 'Crie tags em Gerenciar tags para filtrar por elas.', // novo
   deleteTitle: 'Excluir tag?', // novo
   deleteText: (name: string, games: number) =>
     games > 0

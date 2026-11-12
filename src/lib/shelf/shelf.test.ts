@@ -183,26 +183,35 @@ describe('resultados da busca já na estante', () => {
 });
 
 describe('contadores', () => {
-  it('Backlog conta Quero jogar; Zerados no ano conta só os de Zerado neste ano', async () => {
+  it('Backlog conta Quero jogar; Zerados conta todos os de Zerado, de qualquer ano', async () => {
     const userId = await account();
     await addToShelf(db, userId, game(60), 'quero-jogar', T0);
     await addToShelf(db, userId, game(61), 'quero-jogar', T0);
     await addToShelf(db, userId, game(62), 'zerado', T0);
     await addToShelf(db, userId, game(63), 'zerado', new Date('2025-06-01T12:00:00.000Z'));
     await addToShelf(db, userId, game(64), 'jogando', T0);
-    expect(await shelfCounters(db, userId, T0)).toEqual({ zeroedThisYear: 1, backlog: 2 });
+    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 2, backlog: 2 });
   });
 
-  it('o ano vira no horário de Brasília', async () => {
+  it('a data de fim não muda o contador de Zerados', async () => {
     const userId = await account();
-    // 01/01/2027 01:00 UTC ainda é 31/12/2026 em Brasília.
-    await addToShelf(db, userId, game(70), 'zerado', new Date('2027-01-01T01:00:00.000Z'));
-    expect((await shelfCounters(db, userId, new Date('2026-12-31T23:00:00.000-03:00'))).zeroedThisYear).toBe(1);
-    expect((await shelfCounters(db, userId, new Date('2027-01-01T12:00:00.000Z'))).zeroedThisYear).toBe(0);
+    const added = await addToShelf(db, userId, game(70), 'zerado', T0);
+    if (!added.ok) throw new Error('falhou');
+    expect((await shelfCounters(db, userId)).zeroed).toBe(1);
+    await db.update(shelfEntries).set({ endedYear: 2019, endedMonth: 3 }).where(eq(shelfEntries.id, added.entryId));
+    expect((await shelfCounters(db, userId)).zeroed).toBe(1);
+  });
+
+  it('sair de Zerado tira o jogo do contador', async () => {
+    const userId = await account();
+    const added = await addToShelf(db, userId, game(71), 'zerado', T0);
+    if (!added.ok) throw new Error('falhou');
+    await moveEntry(db, userId, added.entryId, 'jogando', after(1000));
+    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 0, backlog: 0 });
   });
 
   it('sem jogos, tudo zero', async () => {
     const userId = await account();
-    expect(await shelfCounters(db, userId, T0)).toEqual({ zeroedThisYear: 0, backlog: 0 });
+    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 0, backlog: 0 });
   });
 });
