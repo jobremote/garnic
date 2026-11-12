@@ -41,7 +41,7 @@ export function AddGameModal({ open, onClose, onAdd, onOpenExisting, pending }: 
   const group = useId();
   const text = query.trim();
 
-  // Busca com espera de 400 ms depois da última tecla; respostas atrasadas de buscas antigas são ignoradas.
+  // Busca com espera de 250 ms depois da última tecla (resultados mais rápidos, decisão de 12/11/2026); respostas atrasadas de buscas antigas são ignoradas.
   useEffect(() => {
     if (text.length < 2) return;
     const id = ++latest.current;
@@ -50,7 +50,7 @@ export function AddGameModal({ open, onClose, onAdd, onOpenExisting, pending }: 
       const response = await searchGamesAction(text);
       if (id !== latest.current) return;
       setSearch(response.ok ? { kind: 'done', results: response.results } : { kind: 'error', error: response.error });
-    }, 400);
+    }, 250);
     return () => clearTimeout(timer);
   }, [text]);
 

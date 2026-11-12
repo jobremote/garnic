@@ -36,7 +36,7 @@ export function QuickAddModal({ status, onClose, onConfirm, pending }: QuickAddM
   const text = query.trim();
   const full = chosen.length >= QUICK_ADD_MAX;
 
-  // Mesma busca da entrada de um jogo só: espera 400 ms depois da última tecla e ignora respostas de buscas antigas.
+  // Mesma busca da entrada de um jogo só: espera 250 ms depois da última tecla e ignora respostas de buscas antigas.
   useEffect(() => {
     if (text.length < 2) return;
     const id = ++latest.current;
@@ -45,7 +45,7 @@ export function QuickAddModal({ status, onClose, onConfirm, pending }: QuickAddM
       const response = await searchGamesAction(text);
       if (id !== latest.current) return;
       setSearch(response.ok ? { kind: 'done', results: response.results } : { kind: 'error', error: response.error });
-    }, 400);
+    }, 250);
     return () => clearTimeout(timer);
   }, [text]);
 
