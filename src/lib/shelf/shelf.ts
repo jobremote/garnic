@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { games, shelfEntries, type Game } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
+import { SORT_STEP, topSortOrder } from './order';
 import { isShelfStatus, SHELF_STATUSES, type ShelfStatus } from './status';
 import { tagsByEntry, type TagView } from './tags';
 
@@ -56,7 +57,7 @@ export async function addToShelf(db: Db, userId: string, game: IgdbGame, status:
   const saved = await saveGame(db, game);
   const [created] = await db
     .insert(shelfEntries)
-    .values({ userId, gameId: saved.id, status, statusChangedAt: now, createdAt: now })
+    .values({ userId, gameId: saved.id, status, statusChangedAt: now, createdAt: now, sortOrder: topSortOrder(userId, status) })
     .onConflictDoNothing({ target: [shelfEntries.userId, shelfEntries.gameId] })
     .returning({ id: shelfEntries.id });
   if (created) return { ok: true, entryId: created.id, status, alreadyOnShelf: false, gameName: saved.name };
@@ -87,11 +88,11 @@ export async function addManyToShelf(db: Db, userId: string, gamesToAdd: IgdbGam
   if (gamesToAdd.length > QUICK_ADD_MAX) return { ok: false, error: 'too-many' };
   const added: string[] = [];
   const alreadyOnShelf: string[] = [];
-  for (const [index, game] of gamesToAdd.entries()) {
-    // Um milissegundo a menos para cada jogo seguinte: a ordem escolhida vira a ordem na coluna.
+  // Cada jogo novo entra no topo, então a lista é percorrida de trás para frente: o primeiro escolhido termina no topo.
+  for (const [index, game] of [...gamesToAdd.entries()].reverse()) {
     const result = await addToShelf(db, userId, game, status, new Date(now.getTime() - index));
     if (!result.ok) return { ok: false, error: 'invalid-status' };
-    (result.alreadyOnShelf ? alreadyOnShelf : added).push(result.gameName);
+    (result.alreadyOnShelf ? alreadyOnShelf : added).unshift(result.gameName);
   }
   return { ok: true, added, alreadyOnShelf };
 }
@@ -116,12 +117,71 @@ export async function moveEntry(db: Db, userId: string, entryId: string, status:
   if (current.status === status) return { ok: true, status, changed: false, gameName: current.name };
   await db
     .update(shelfEntries)
-    .set({ status, statusChangedAt: now })
+    .set({ status, statusChangedAt: now, sortOrder: topSortOrder(userId, status) })
     .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
   return { ok: true, status, changed: true, gameName: current.name };
 }
 
-/** A estante de uma pessoa em colunas. Dentro de cada coluna, o que mudou de status por último vem primeiro. */
+export type PlaceResult =
+  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean }
+  | { ok: false; error: 'invalid-status' | 'not-found' | 'invalid-order' };
+
+/** Quantos cards cabem numa lista de ordem (limite de segurança). */
+export const MAX_ORDER_IDS = 500;
+
+/**
+ * Põe um card **numa posição** de uma coluna: serve para reordenar dentro da coluna e para soltar um card numa posição
+ * de outra coluna. `orderedIds` é a lista **completa e já na ordem nova** dos ids da coluna de destino (incluindo o
+ * card). Só entradas da própria pessoa; os outros ids da lista têm que já estar na coluna de destino. Tudo numa
+ * instrução SQL só (o Neon HTTP não tem transações): muda a coluna do card (e a data da mudança, se mudou) e regrava a ordem.
+ */
+export async function placeEntry(
+  db: Db,
+  userId: string,
+  entryId: string,
+  status: unknown,
+  orderedIds: unknown,
+  now = new Date(),
+): Promise<PlaceResult> {
+  if (!isShelfStatus(status)) return { ok: false, error: 'invalid-status' };
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (
+    !Array.isArray(orderedIds) ||
+    orderedIds.length === 0 ||
+    orderedIds.length > MAX_ORDER_IDS ||
+    !orderedIds.every((id) => typeof id === 'string' && uuid.test(id)) ||
+    new Set(orderedIds).size !== orderedIds.length ||
+    !orderedIds.includes(entryId)
+  ) {
+    return { ok: false, error: 'invalid-order' };
+  }
+  const ids = orderedIds as string[];
+  const rows = await db
+    .select({ id: shelfEntries.id, status: shelfEntries.status, name: games.name })
+    .from(shelfEntries)
+    .innerJoin(games, eq(games.id, shelfEntries.gameId))
+    .where(and(eq(shelfEntries.userId, userId), inArray(shelfEntries.id, ids)));
+  const moving = rows.find((row) => row.id === entryId);
+  if (!moving) return { ok: false, error: 'not-found' };
+  if (rows.length !== ids.length || rows.some((row) => row.id !== entryId && row.status !== status)) {
+    return { ok: false, error: 'invalid-order' };
+  }
+  const values = sql.join(
+    ids.map((id, index) => sql`(${id}::uuid, ${index * SORT_STEP}::int)`),
+    sql`, `,
+  );
+  await db.execute(sql`
+    UPDATE shelf_entries AS e SET
+      sort_order = v.pos,
+      status = CASE WHEN e.id = ${entryId}::uuid THEN ${status}::text ELSE e.status END,
+      status_changed_at = CASE WHEN e.id = ${entryId}::uuid AND e.status <> ${status}::text THEN ${now.toISOString()}::timestamptz ELSE e.status_changed_at END
+    FROM (VALUES ${values}) AS v(id, pos)
+    WHERE e.id = v.id AND e.user_id = ${userId}::uuid
+  `);
+  return { ok: true, gameName: moving.name, status, changed: moving.status !== status };
+}
+
+/** A estante de uma pessoa em colunas. Dentro de cada coluna vale a ordem escolhida pela pessoa (`sort_order`). */
 export async function getShelf(db: Db, userId: string): Promise<ShelfColumns> {
   const rows = await db
     .select({
@@ -141,7 +201,7 @@ export async function getShelf(db: Db, userId: string): Promise<ShelfColumns> {
     .from(shelfEntries)
     .innerJoin(games, eq(games.id, shelfEntries.gameId))
     .where(eq(shelfEntries.userId, userId))
-    .orderBy(desc(shelfEntries.statusChangedAt), desc(shelfEntries.createdAt));
+    .orderBy(asc(shelfEntries.sortOrder), desc(shelfEntries.statusChangedAt), desc(shelfEntries.createdAt));
   const entryTags = await tagsByEntry(db, rows.map((row) => row.entryId));
   const columns = emptyColumns();
   for (const row of rows) {

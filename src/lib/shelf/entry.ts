@@ -1,8 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { isAcceptableImageRef } from '@/lib/profile/images';
 import { games, shelfEntries } from '@/lib/db/schema';
 import { isShelfStatus, type ShelfStatus } from './status';
+import { topSortOrder } from './order';
 import { checkTagIds, replaceEntryTags, tagsByEntry } from './tags';
 
 /** Edição da entrada da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
@@ -126,7 +127,9 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
   if (!current) return { ok: false, error: 'not-found' };
 
   const errors: Partial<Record<EntryField, EntryErrorCode>> = {};
-  const set: Partial<typeof shelfEntries.$inferInsert> = {};
+  // Cada coluna aceita também uma expressão SQL (o topo da coluna é calculado no próprio UPDATE).
+  type Insert = typeof shelfEntries.$inferInsert;
+  const set: Partial<{ [K in keyof Insert]: Insert[K] | SQL }> = {};
 
   let status = current.status;
   if (input.status !== undefined) {
@@ -205,6 +208,7 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
   if (statusChanged) {
     set.status = status;
     set.statusChangedAt = now;
+    set.sortOrder = topSortOrder(userId, status); // entra no topo da coluna nova
   }
   if (Object.keys(set).length > 0) {
     await db.update(shelfEntries).set(set).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));

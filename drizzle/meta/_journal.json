@@ -64,6 +64,13 @@
       "when": 1794425021829,
       "tag": "0008_capa_posicionavel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794490329416,
+      "tag": "0009_kanban_ordem",
+      "breakpoints": true
     }
   ]
 }

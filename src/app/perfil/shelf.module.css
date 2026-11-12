@@ -44,6 +44,16 @@
   outline-offset: calc(var(--nds-stroke-default) * -1);
 }
 
+/* Linha branca entre os cards: onde o card arrastado vai ficar. */
+.dropLine {
+  flex: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--nds-text-primary, #fff);
+  pointer-events: none;
+}
+
 /* Aviso: fixo embaixo, no centro. */
 .toast {
   position: fixed;

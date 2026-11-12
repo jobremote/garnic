@@ -1,6 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachTouchDrag, autoScrollStep, HOLD_MS } from './touch-drag';
+import { attachTouchDrag, autoScrollStep, dropIndexAt, HOLD_MS } from './touch-drag';
+
+describe('dropIndexAt', () => {
+  const rect = (top: number, height: number) => ({ top, height, bottom: top + height, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+  it('conta os cards acima do ponto, sem contar o arrastado', () => {
+    document.body.innerHTML = '<section id="c"><div data-entry-id="a"></div><div data-entry-id="b"></div><div data-entry-id="c"></div></section>';
+    const column = document.getElementById('c') as HTMLElement;
+    column.querySelectorAll('[data-entry-id]').forEach((el, i) => {
+      el.getBoundingClientRect = () => rect(i * 100, 80);
+    });
+    expect(dropIndexAt(column, 10, 'zzz')).toBe(0); // acima do meio do primeiro
+    expect(dropIndexAt(column, 150, 'zzz')).toBe(2); // depois do meio do segundo
+    expect(dropIndexAt(column, 999, 'zzz')).toBe(3); // no fim
+    expect(dropIndexAt(column, 999, 'a')).toBe(2); // o arrastado não conta
+    expect(dropIndexAt(null, 10, 'a')).toBe(0);
+  });
+});
 
 describe('autoScrollStep', () => {
   it('no meio da área não rola; perto das bordas rola para o lado certo, mais rápido quanto mais perto', () => {
@@ -52,8 +68,8 @@ describe('attachTouchDrag', () => {
       cardSelector: '.card',
       columnAt: (x, y) => columnAt(x, y),
       onStart: (id, from) => calls.push(`start ${id} ${from}`),
-      onOver: (column) => calls.push(`over ${column}`),
-      onDrop: (id, from, to) => calls.push(`drop ${id} ${from}->${to}`),
+      onOver: (column, index) => calls.push(`over ${column}@${index}`),
+      onDrop: (id, from, to, index) => calls.push(`drop ${id} ${from}->${to}@${index}`),
       onEnd: () => calls.push('end'),
     });
   });
@@ -69,14 +85,14 @@ describe('attachTouchDrag', () => {
     touch('touchstart', card.querySelector('.open') as Element, 10, 10);
     expect(calls).toEqual([]); // ainda esperando
     vi.advanceTimersByTime(HOLD_MS + 1);
-    expect(calls).toEqual(['start e1 jogando', 'over zerado']);
+    expect(calls).toEqual(['start e1 jogando', 'over zerado@0']);
     expect(document.body.querySelectorAll('.card')).toHaveLength(2); // o "fantasma" que acompanha o dedo
 
     const move = touch('touchmove', container, 120, 60);
     expect(move.defaultPrevented).toBe(true); // a página não rola junto
     const end = touch('touchend', container, 120, 60);
     expect(end.defaultPrevented).toBe(true); // sem clique fantasma
-    expect(calls).toEqual(['start e1 jogando', 'over zerado', 'drop e1 jogando->zerado', 'end']);
+    expect(calls).toEqual(['start e1 jogando', 'over zerado@0', 'drop e1 jogando->zerado@0', 'end']);
     expect(document.body.querySelectorAll('.card')).toHaveLength(1); // fantasma removido
   });
 
@@ -102,12 +118,12 @@ describe('attachTouchDrag', () => {
     expect(calls).toEqual([]);
   });
 
-  it('soltar na coluna de origem ou fora de qualquer coluna não move', () => {
+  it('soltar na coluna de origem reordena (mesma coluna); fora de qualquer coluna não faz nada', () => {
     columnAt = () => 'jogando';
     touch('touchstart', card.querySelector('.open') as Element, 10, 10);
     vi.advanceTimersByTime(HOLD_MS + 1);
     touch('touchend', container, 10, 10);
-    expect(calls).toEqual(['start e1 jogando', 'over jogando', 'end']);
+    expect(calls).toEqual(['start e1 jogando', 'over jogando@0', 'drop e1 jogando->jogando@0', 'end']);
 
     calls.length = 0;
     columnAt = () => null;
@@ -121,7 +137,7 @@ describe('attachTouchDrag', () => {
     touch('touchstart', card.querySelector('.open') as Element, 10, 10);
     vi.advanceTimersByTime(HOLD_MS + 1);
     touch('touchcancel', container, 10, 10);
-    expect(calls).toEqual(['start e1 jogando', 'over zerado', 'end']);
+    expect(calls).toEqual(['start e1 jogando', 'over zerado@0', 'end']);
     expect(document.body.querySelectorAll('.card')).toHaveLength(1);
   });
 
