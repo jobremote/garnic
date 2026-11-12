@@ -15,6 +15,17 @@ const API_URL = 'https://api.igdb.com/v4';
 const MIN_INTERVAL_MS = 250;
 const GAME_FIELDS = 'name,slug,cover.image_id,first_release_date,platforms.name';
 
+/**
+ * Tipos de "jogo" do IGDB (`game_type`) que ficam **de fora da busca** (decisão do Leo, 12/11/2026): mods (5), pacotes
+ * de jogos (3), pacotes e complementos (13), forks (12) e atualizações (14). **Ficam**: jogo principal (0), DLC (1),
+ * expansões (2 e 4), remake (8), remaster (9), port (11), jogo expandido (10), temporada (7) e episódio (6).
+ */
+export const HIDDEN_GAME_TYPES = [5, 3, 13, 12, 14] as const;
+
+/** Quantos resultados a busca mostra, e quantos candidatos pedimos ao IGDB (80, numa só consulta) para poder ordenar por relevância (o IGDB não ordena junto com a busca). */
+export const SEARCH_RESULTS = 10;
+const SEARCH_CANDIDATES = 80;
+
 export interface IgdbCredentials {
   clientId: string;
   clientSecret: string;
@@ -39,6 +50,10 @@ export interface IgdbGame {
 
 interface RawGame {
   id: number;
+  /** Quantas notas o jogo recebeu no IGDB (sinal de popularidade). */
+  total_rating_count?: number;
+  /** Quantas pessoas seguem o jogo no IGDB. */
+  follows?: number;
   name?: string;
   slug?: string;
   cover?: { image_id?: string };
@@ -57,6 +72,37 @@ export function toIgdbGame(raw: RawGame): IgdbGame | null {
     releasedAt: typeof raw.first_release_date === 'number' ? new Date(raw.first_release_date * 1000) : null,
     platforms: (raw.platforms ?? []).map((p) => p.name).filter((name): name is string => Boolean(name)),
   };
+}
+
+/** Texto comparável: sem maiúsculas, acentos e pontuação ("Mega Man X" e "mega-man x" ficam iguais). */
+export const normalizeTitle = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+export interface SearchCandidate {
+  game: IgdbGame;
+  ratingCount: number;
+  follows: number;
+}
+
+/**
+ * Ordena os resultados da busca do mais relevante para o menos relevante. O IGDB não ordena junto com a busca
+ * (responde 406), então a ordem é nossa: popularidade (`total_rating_count`, com `follows` de apoio, em escala
+ * logarítmica para um jogo gigante não esmagar os demais) mais um empurrão para o nome igual ao que foi digitado.
+ * O empate mantém a ordem original do IGDB.
+ */
+export function rankSearchResults(candidates: SearchCandidate[], query: string): IgdbGame[] {
+  const wanted = normalizeTitle(query);
+  const score = ({ game, ratingCount, follows }: SearchCandidate) =>
+    Math.log1p(ratingCount) + 0.3 * Math.log1p(follows) + (normalizeTitle(game.name) === wanted ? 2 : 0);
+  return candidates
+    .map((candidate, index) => ({ candidate, index, value: score(candidate) }))
+    .sort((a, b) => b.value - a.value || a.index - b.index)
+    .map(({ candidate }) => candidate.game);
 }
 
 interface RawTimeToBeat {
@@ -174,16 +220,24 @@ export function createIgdbClient(options: IgdbClientOptions) {
   }
 
   return {
-    /** Busca jogos pelo nome. Edições (versões) ficam de fora, como o IGDB recomenda para listas de busca. */
-    async searchGames(query: string, limit = 10): Promise<IgdbGame[]> {
+    /**
+     * Busca jogos pelo nome, **do mais relevante para o menos relevante** (até 10). Ficam de fora as edições
+     * (`version_parent`) e os tipos em `HIDDEN_GAME_TYPES` (mods, pacotes, forks...). Pede 80 ao IGDB e ordena aqui.
+     */
+    async searchGames(query: string, limit = SEARCH_RESULTS): Promise<IgdbGame[]> {
       const text = apicalypseString(query);
       if (text.length < 2) return [];
       const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 20);
+      const hidden = HIDDEN_GAME_TYPES.join(',');
       const raw = (await post(
         'games',
-        `search "${text}"; fields ${GAME_FIELDS}; where version_parent = null; limit ${safeLimit};`,
+        `search "${text}"; fields ${GAME_FIELDS},total_rating_count,follows; where version_parent = null & (game_type = null | game_type != (${hidden})); limit ${SEARCH_CANDIDATES};`,
       )) as RawGame[];
-      return raw.map(toIgdbGame).filter((game): game is IgdbGame => game !== null);
+      const candidates = raw.flatMap((item) => {
+        const game = toIgdbGame(item);
+        return game ? [{ game, ratingCount: item.total_rating_count ?? 0, follows: item.follows ?? 0 }] : [];
+      });
+      return rankSearchResults(candidates, text).slice(0, safeLimit);
     },
 
     /**

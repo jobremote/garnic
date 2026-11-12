@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apicalypseString, coverUrl, createIgdbClient, IgdbError, igdbCredentials, toIgdbGame } from './igdb';
+import { apicalypseString, coverUrl, createIgdbClient, HIDDEN_GAME_TYPES, IgdbError, igdbCredentials, normalizeTitle, rankSearchResults, SEARCH_RESULTS, toIgdbGame, type IgdbGame, type SearchCandidate } from './igdb';
 
 const credentials = { clientId: 'id-teste', clientSecret: 'segredo-teste' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -43,6 +43,44 @@ describe('toIgdbGame', () => {
   it('campos ausentes viram nulo ou lista vazia; sem id ou nome, descarta', () => {
     expect(toIgdbGame({ id: 2, name: 'X' })).toEqual({ igdbId: 2, name: 'X', slug: null, coverImageId: null, releasedAt: null, platforms: [] });
     expect(toIgdbGame({ id: 3 })).toBeNull();
+  });
+});
+
+const candidate = (igdbId: number, name: string, ratingCount = 0, follows = 0): SearchCandidate => ({
+  game: { igdbId, name, slug: null, coverImageId: null, releasedAt: null, platforms: [] } satisfies IgdbGame,
+  ratingCount,
+  follows,
+});
+
+describe('normalizeTitle', () => {
+  it('ignora maiúsculas, acentos e pontuação', () => {
+    expect(normalizeTitle('  Pokémon: Edição Vermelha! ')).toBe('pokemon edicao vermelha');
+    expect(normalizeTitle('Mega-Man X')).toBe(normalizeTitle('mega man x'));
+  });
+});
+
+describe('rankSearchResults', () => {
+  it('mais avaliações vêm primeiro; follows ajuda no empate de avaliações', () => {
+    const ranked = rankSearchResults([candidate(1, 'A', 5), candidate(2, 'B', 500), candidate(3, 'C', 5, 400)], 'x');
+    expect(ranked.map((g) => g.igdbId)).toEqual([2, 3, 1]);
+  });
+
+  it('o nome igual ao digitado ganha um empurrão, mas não passa um jogo muito mais popular', () => {
+    // Sem avaliações, o nome exato sobe acima de outro sem avaliações...
+    expect(rankSearchResults([candidate(1, 'Hades Dive'), candidate(2, 'Hades')], 'hades').map((g) => g.igdbId)).toEqual([2, 1]);
+    // ...e entre dois com poucas avaliações, o exato vence...
+    expect(rankSearchResults([candidate(1, 'Hades II', 3), candidate(2, 'Hades', 3)], 'hades').map((g) => g.igdbId)).toEqual([2, 1]);
+    // ...mas um jogo gigante que só contém o termo ainda passa um exato obscuro.
+    expect(rankSearchResults([candidate(1, 'Super Mario Bros.', 900), candidate(2, 'Mario')], 'mario').map((g) => g.igdbId)).toEqual([1, 2]);
+  });
+
+  it('empate total mantém a ordem original do IGDB (ordenação estável)', () => {
+    const ranked = rankSearchResults([candidate(1, 'A'), candidate(2, 'B'), candidate(3, 'C')], 'z');
+    expect(ranked.map((g) => g.igdbId)).toEqual([1, 2, 3]);
+  });
+
+  it('lista vazia devolve lista vazia', () => {
+    expect(rankSearchResults([], 'qualquer')).toEqual([]);
   });
 });
 
@@ -90,10 +128,35 @@ describe('searchGames', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('limita o tamanho da lista', async () => {
+  it('pede candidatos de sobra ao IGDB (para ordenar aqui) e nunca devolve mais que o limite', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({ id: i + 1, name: `Jogo ${i + 1}`, total_rating_count: i }));
+    const { fn, calls } = fakeFetch({ games: () => json(many) });
+    const games = await make(fn).searchGames('Jogo');
+    expect(String(calls[1].init?.body)).toContain('limit 80;');
+    expect(games).toHaveLength(SEARCH_RESULTS);
+    expect((await make(fakeFetch({ games: () => json(many) }).fn).searchGames('Jogo', 500)).length).toBeLessThanOrEqual(20);
+  });
+
+  it('a busca esconde mods, pacotes, pacotes/complementos, forks e atualizações, mas não DLC, remake, remaster nem port', async () => {
     const { fn, calls } = fakeFetch();
-    await make(fn).searchGames('Hades', 500);
-    expect(String(calls[1].init?.body)).toContain('limit 20;');
+    await make(fn).searchGames('Hades');
+    const body = String(calls[1].init?.body);
+    expect(HIDDEN_GAME_TYPES).toEqual([5, 3, 13, 12, 14]);
+    expect(body).toContain('game_type != (5,3,13,12,14)');
+    expect(body).toContain('game_type = null'); // jogo sem tipo continua aparecendo
+    for (const keptType of [0, 1, 2, 4, 8, 9, 11]) expect(HIDDEN_GAME_TYPES).not.toContain(keptType);
+  });
+
+  it('devolve o mais relevante primeiro (a versão famosa antes das desconhecidas)', async () => {
+    const raw = [
+      { id: 1, name: 'Mega Man X', total_rating_count: 0 },
+      { id: 2, name: 'Mega Man X', total_rating_count: 299 },
+      { id: 3, name: 'Mega Man X Dive', total_rating_count: 0 },
+      { id: 4, name: 'Mega Man 10', total_rating_count: 44 },
+    ];
+    const { fn } = fakeFetch({ games: () => json(raw) });
+    const games = await make(fn).searchGames('mega man x');
+    expect(games.map((g) => g.igdbId)).toEqual([2, 4, 1, 3]);
   });
 
   it('token recusado (401) é renovado e o pedido tentado de novo', async () => {
