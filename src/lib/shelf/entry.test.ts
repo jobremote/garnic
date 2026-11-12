@@ -6,7 +6,7 @@ import { games, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { createTestDb, validSignup } from '@/test/db';
 import { getEntry, REVIEW_MAX, removeEntry, updateEntry } from './entry';
-import { addToShelf, getShelf, shelfCounters } from './shelf';
+import { addToShelf, getShelf } from './shelf';
 
 const T0 = new Date('2026-11-11T12:00:00.000Z');
 const after = (ms: number) => new Date(T0.getTime() + ms);
@@ -187,17 +187,6 @@ describe('tempo de jogo e status', () => {
     await updateEntry(db, userId, entryId, { rating: 5, playMinutes: 600, ended: { month: 10, year: 2026 } }, T0);
     await updateEntry(db, userId, entryId, { status: 'jogando' }, after(1000));
     expect(await getEntry(db, userId, entryId)).toMatchObject({ status: 'jogando', rating: 5, playMinutes: 600, ended: { month: 10, year: 2026 } });
-  });
-});
-
-describe('contador "Zerados no ano" com data de fim', () => {
-  it('usa o ano da data de fim quando existe', async () => {
-    const { userId, entryId } = await setup('zerado'); // entrou em Zerado em 2026
-    expect((await shelfCounters(db, userId, T0)).zeroedThisYear).toBe(1);
-    await updateEntry(db, userId, entryId, { ended: { month: 5, year: 2024 } }, T0); // mas terminou em 2024
-    expect((await shelfCounters(db, userId, T0)).zeroedThisYear).toBe(0);
-    await updateEntry(db, userId, entryId, { ended: { month: 2, year: 2026 } }, T0);
-    expect((await shelfCounters(db, userId, T0)).zeroedThisYear).toBe(1);
   });
 });
 

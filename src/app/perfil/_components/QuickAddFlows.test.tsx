@@ -154,6 +154,32 @@ describe('cadastro rápido de vários jogos', () => {
     expect(within(dialog).getByRole('button', { name: 'Adicionar 20 jogos' })).toBeEnabled();
   });
 
+  it('o X limpa a busca, mantém os chips e devolve o foco; sem texto não há X', async () => {
+    const user = userEvent.setup();
+    render(shelf());
+    const dialog = await openQuick(user);
+    expect(within(dialog).queryByRole('button', { name: 'Limpar busca' })).toBeNull();
+    await search(user, dialog);
+    await user.click(within(dialog).getByRole('button', { name: 'Incluir: Hades' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Limpar busca' }));
+    const field = within(dialog).getByRole('searchbox', { name: 'Buscar jogo' });
+    expect(field).toHaveValue('');
+    expect(field).toHaveFocus();
+    expect(within(dialog).getByText('Digite pelo menos 2 letras.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Tirar da lista: Hades' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Limpar busca' })).toBeNull();
+  });
+
+  it('clicar fora da janela não fecha; o X da janela fecha', async () => {
+    const user = userEvent.setup();
+    render(shelf());
+    const dialog = await openQuick(user);
+    await user.click(dialog); // o fundo escurecido
+    expect(screen.getByRole('dialog', { name: 'Adicionar em Quero jogar' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Fechar' }));
+    expect(screen.queryByRole('dialog', { name: /Adicionar em/ })).toBeNull();
+  });
+
   it('cancelar fecha sem adicionar nada', async () => {
     const user = userEvent.setup();
     render(shelf());

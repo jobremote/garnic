@@ -99,6 +99,7 @@ export function AddGameModal({ open, onClose, onAdd, onOpenExisting, pending }: 
             placeholder={t.searchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onClear={() => setQuery('')}
             autoComplete="off"
             autoFocus
           />

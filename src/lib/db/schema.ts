@@ -174,7 +174,7 @@ export const games = pgTable(
  * Entrada da Game Shelf: um jogo na estante de uma pessoa. Uma entrada por jogo por usuário (rejogo é da v2).
  * `status` é um de `quero-jogar`, `parado`, `jogando`, `zerado` (ver `src/lib/shelf/status.ts`).
  * `statusChangedAt` marca a última mudança de coluna: ordena os cards (mais recente primeiro) e, em Zerado, é a data
- * de conclusão usada pelo contador "Zerados no ano" enquanto não houver data de fim informada.
+ * de conclusão (informativa; o contador "Zerados" do perfil conta o total, sem recorte por ano).
  */
 export const shelfEntries = pgTable(
   'shelf_entries',

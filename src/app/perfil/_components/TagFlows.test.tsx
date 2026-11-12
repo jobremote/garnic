@@ -68,9 +68,13 @@ describe('Game Shelf: tags nos cards e filtro', () => {
     expect(within(playing).getByText('Elden Ring')).toBeInTheDocument();
   });
 
-  it('sem tags, não há filtro; no perfil de outra pessoa o filtro existe mas não há "Gerenciar tags"', () => {
+  it('sem tags, a dona vê o filtro desabilitado com a dica; quem visita não vê filtro; no perfil de outra pessoa com tags o filtro existe mas não há "Gerenciar tags"', () => {
     const { rerender } = render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
+    expect(screen.getByRole('combobox', { name: 'Filtrar por tag' })).toBeDisabled();
+    expect(screen.getByText('Crie tags em Gerenciar tags para filtrar por elas.')).toBeInTheDocument();
+    rerender(<GameShelf columns={columns()} own={false} title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     expect(screen.queryByRole('combobox', { name: 'Filtrar por tag' })).toBeNull();
+    rerender(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     expect(screen.getByRole('button', { name: 'Gerenciar tags' })).toBeInTheDocument();
     rerender(<GameShelf columns={columns()} own={false} title="Game Shelf" tags={tagList} uploadMode="local" userId="u1" />);
     expect(screen.getByRole('combobox', { name: 'Filtrar por tag' })).toBeInTheDocument();

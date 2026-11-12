@@ -118,7 +118,7 @@ export function ProfileView({
             {/* Hierarquia: os contadores de jogo (o assunto do produto) em destaque; os sociais, de apoio. */}
             <div className={styles.stats}>
               <dl className={styles.statGroup} aria-label="Jogos">
-                <Stat value={counters.zeroedThisYear} label={t.zeroedThisYear} />
+                <Stat value={counters.zeroed} label={t.zeroed} />
                 <Stat value={counters.backlog} label={t.backlog} />
               </dl>
               {/* Seguidores e Seguindo dependem do bloco Feed (seguir): 0 até lá. */}

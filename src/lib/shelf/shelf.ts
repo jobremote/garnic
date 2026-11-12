@@ -164,26 +164,25 @@ export async function statusByIgdbId(db: Db, userId: string, igdbIds: number[]):
 }
 
 export interface ShelfCounters {
-  /** Jogos que entraram em Zerado no ano de `now` (horário de Brasília). */
-  zeroedThisYear: number;
+  /** Total de jogos em Zerado, de qualquer ano. */
+  zeroed: number;
   /** Jogos em Quero jogar. */
   backlog: number;
 }
 
 /**
- * Contadores do perfil. "Zerados no ano" conta as entradas em Zerado cuja data de conclusão cai no ano corrente:
- * o ano da data de fim, se informada, senão o ano em que a entrada foi para Zerado. Backlog = jogos em Quero jogar.
+ * Contadores do perfil (decisão de 12/11/2026): **Zerados** = total de entradas em Zerado, sem recorte por ano (nem
+ * todo zerado é do ano corrente e ainda não há filtro por data). Backlog = jogos em Quero jogar.
  */
-export async function shelfCounters(db: Db, userId: string, now = new Date()): Promise<ShelfCounters> {
-  const year = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(now));
+export async function shelfCounters(db: Db, userId: string): Promise<ShelfCounters> {
   const [row] = await db
     .select({
-      zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado' and coalesce(${shelfEntries.endedYear}::int, extract(year from ${shelfEntries.statusChangedAt} at time zone 'America/Sao_Paulo')::int) = ${year})::int`,
+      zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado')::int`,
       backlog: sql<number>`count(*) filter (where ${shelfEntries.status} = 'quero-jogar')::int`,
     })
     .from(shelfEntries)
     .where(eq(shelfEntries.userId, userId));
-  return { zeroedThisYear: row?.zeroed ?? 0, backlog: row?.backlog ?? 0 };
+  return { zeroed: row?.zeroed ?? 0, backlog: row?.backlog ?? 0 };
 }
 
 export { SHELF_STATUSES };
