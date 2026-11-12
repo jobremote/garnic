@@ -25,6 +25,20 @@ export function autoScrollStep(position: number, start: number, end: number, edg
   return 0;
 }
 
+/**
+ * Posição de soltura numa coluna: quantos cards (sem contar o que está sendo arrastado) ficam **acima** do ponto `y`.
+ * Vale 0 no topo e o total no fim; serve para o arrastar do mouse e o do dedo.
+ */
+export function dropIndexAt(column: Element | null, y: number, excludeEntryId: string): number {
+  if (!column) return 0;
+  const cards = [...column.querySelectorAll<HTMLElement>('[data-entry-id]')].filter((card) => card.dataset.entryId !== excludeEntryId);
+  for (let index = 0; index < cards.length; index += 1) {
+    const rect = cards[index].getBoundingClientRect();
+    if (y < rect.top + rect.height / 2) return index;
+  }
+  return cards.length;
+}
+
 export interface TouchDragOptions {
   /** A área que rola de lado (o kanban). */
   container: HTMLElement;
@@ -33,9 +47,12 @@ export interface TouchDragOptions {
   /** Qual coluna está sob o dedo (padrão: a que tem `data-column` no ponto). Trocável nos testes. */
   columnAt?: (x: number, y: number) => string | null;
   onStart: (entryId: string, from: string) => void;
-  onOver: (column: string | null) => void;
-  onDrop: (entryId: string, from: string, to: string) => void;
+  /** Coluna sob o dedo e a posição de soltura nela (0 = topo). */
+  onOver: (column: string | null, index: number) => void;
+  onDrop: (entryId: string, from: string, to: string, index: number) => void;
   onEnd: () => void;
+  /** Posição de soltura na coluna (padrão: pelos cards no DOM). Trocável nos testes. */
+  indexAt?: (column: string, y: number, entryId: string) => number;
   holdMs?: number;
 }
 
@@ -48,6 +65,8 @@ const defaultColumnAt = (x: number, y: number): string | null => {
 export function attachTouchDrag(options: TouchDragOptions): () => void {
   const { container, cardSelector, onStart, onOver, onDrop, onEnd, holdMs = HOLD_MS } = options;
   const columnAt = options.columnAt ?? defaultColumnAt;
+  const indexAt =
+    options.indexAt ?? ((column: string, y: number, entryId: string) => dropIndexAt(container.querySelector('[data-column="' + column + '"]'), y, entryId));
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let frame = 0;
@@ -56,6 +75,7 @@ export function attachTouchDrag(options: TouchDragOptions): () => void {
   let active: { entryId: string; from: string; ghost: HTMLElement; offsetX: number; offsetY: number } | null = null;
   let finger = { x: 0, y: 0 };
   let over: string | null = null;
+  let overIndex = 0;
 
   const point = (event: TouchEvent) => {
     const touch = event.touches[0] ?? event.changedTouches[0];
@@ -73,9 +93,11 @@ export function attachTouchDrag(options: TouchDragOptions): () => void {
 
   const updateOver = () => {
     const column = columnAt(finger.x, finger.y);
-    if (column !== over) {
+    const index = column && active ? indexAt(column, finger.y, active.entryId) : 0;
+    if (column !== over || index !== overIndex) {
       over = column;
-      onOver(column);
+      overIndex = index;
+      onOver(column, index);
     }
   };
 
@@ -87,6 +109,16 @@ export function attachTouchDrag(options: TouchDragOptions): () => void {
     if (horizontal !== 0) {
       container.scrollLeft += horizontal;
       updateOver();
+    }
+    // A lista da coluna sob o dedo rola quando o dedo chega perto do topo ou do fim dela.
+    const scroller = over ? container.querySelector('[data-column="' + over + '"] .nds-board-column__scroll') : null;
+    if (scroller) {
+      const box = scroller.getBoundingClientRect();
+      const inside = autoScrollStep(finger.y, box.top, box.bottom, 56, 14);
+      if (inside !== 0) {
+        scroller.scrollTop += inside;
+        updateOver();
+      }
     }
     const vertical = autoScrollStep(finger.y, 0, window.innerHeight, 80, 14);
     if (vertical !== 0) window.scrollBy(0, vertical);
@@ -100,8 +132,9 @@ export function attachTouchDrag(options: TouchDragOptions): () => void {
       const { entryId, from, ghost } = active;
       ghost.remove();
       active = null;
-      if (drop && over && over !== from) onDrop(entryId, from, over);
+      if (drop && over) onDrop(entryId, from, over, overIndex);
       over = null;
+      overIndex = 0;
       onEnd();
     }
     origin = null;

@@ -188,6 +188,11 @@ export const shelfEntries = pgTable(
       .references(() => games.id),
     status: text('status').notNull(),
     statusChangedAt: instant('status_changed_at').notNull().defaultNow(),
+    /**
+     * Ordem do card dentro da coluna (menor = mais acima). É da pessoa e quem visita o perfil vê a mesma ordem. Jogo novo
+     * e jogo que muda de coluna entram no topo (menor valor da coluna menos um passo). Ver src/lib/shelf/order.ts.
+     */
+    sortOrder: integer('sort_order').notNull().default(0),
     createdAt: instant('created_at').notNull().defaultNow(),
     /** Plataforma em que a pessoa jogou: um dos nomes de `games.platforms`. Opcional. */
     platform: text('platform'),

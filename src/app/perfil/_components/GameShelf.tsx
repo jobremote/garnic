@@ -1,15 +1,15 @@
 'use client';
 
-import { startTransition, useEffect, useOptimistic, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
+import { startTransition, useEffect, useOptimistic, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from 'react';
 import { BoardColumn, Button, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
 import { screenshotMessages as sm, shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
-import { addGameAction, addGamesAction, moveGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
+import { addGameAction, addGamesAction, moveGameAction, placeGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
 import { EntryModal, RemoveEntryModal } from './EntryModal';
 import { EntryViewModal } from './EntryViewModal';
-import { attachTouchDrag } from './touch-drag';
+import { attachTouchDrag, dropIndexAt } from './touch-drag';
 import type { UploadMode } from './upload-image';
 import { ManageTagsModal } from './ManageTagsModal';
 import { QuickAddModal } from './QuickAddModal';
@@ -41,6 +41,9 @@ type Dialog =
   | null;
 
 const NOTICE_MS = 6000;
+
+/** Altura máxima de cada coluna: cerca de 5 cards e meio (Figma: Kanban com muitos jogos). Passando disso, a lista rola dentro da coluna. */
+const COLUMN_MAX_HEIGHT = 640;
 
 /** Tela de toque (dedo) em vez de mouse: lá o arrastar é por toque longo, e não pelo arrastar nativo do navegador. */
 const COARSE = '(pointer: coarse)';
@@ -89,26 +92,37 @@ export function GameShelf({
   /** Coluna do cadastro rápido de vários jogos aberto (botão + do cabeçalho da coluna). */
   const [quickAdd, setQuickAdd] = useState<ShelfStatus | null>(null);
 
-  const [board, moveOptimistically] = useOptimistic(columns, (state: ShelfData, move: { entryId: string; status: ShelfStatus }) => {
-    const next = { ...state };
-    let card: ShelfCardData | undefined;
-    for (const status of SHELF_STATUSES) {
-      const found = state[status].find((item) => item.entryId === move.entryId);
-      if (found) {
-        card = found;
-        next[status] = state[status].filter((item) => item.entryId !== move.entryId);
+  const [board, moveOptimistically] = useOptimistic(
+    columns,
+    (state: ShelfData, move: { entryId: string; status: ShelfStatus; orderedIds?: string[] }) => {
+      const next = { ...state };
+      let card: ShelfCardData | undefined;
+      for (const status of SHELF_STATUSES) {
+        const found = state[status].find((item) => item.entryId === move.entryId);
+        if (found) {
+          card = found;
+          next[status] = state[status].filter((item) => item.entryId !== move.entryId);
+        }
       }
-    }
-    if (card) next[move.status] = [card, ...next[move.status]];
-    return next;
-  });
+      if (!card) return next;
+      if (move.orderedIds) {
+        // Posição escolhida: a coluna de destino fica exatamente na ordem recebida.
+        const pool = new Map([...next[move.status], card].map((item) => [item.entryId, item]));
+        next[move.status] = move.orderedIds.flatMap((id) => (pool.has(id) ? [pool.get(id) as ShelfCardData] : []));
+      } else {
+        next[move.status] = [card, ...next[move.status]]; // pelo menu: entra no topo
+      }
+      return next;
+    },
+  );
   const [adding, setAdding] = useState(false);
   const [session, setSession] = useState(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dragging, setDragging] = useState<{ entryId: string; from: ShelfStatus } | null>(null);
-  const [over, setOver] = useState<ShelfStatus | null>(null);
+  /** Coluna sob o card arrastado e a posição de soltura nela (0 = topo). */
+  const [over, setOver] = useState<{ status: ShelfStatus; index: number } | null>(null);
 
   useEffect(() => {
     if (!notice) return;
@@ -182,6 +196,31 @@ export function GameShelf({
     });
   };
 
+  /**
+   * Soltar um card numa posição: reordena dentro da coluna ou leva para outra coluna já no lugar escolhido. A lista
+   * completa da coluna de destino, na ordem nova, vai para o servidor. Com o filtro por tag ligado, não dá para
+   * reordenar (a ordem completa não está à vista); levar para outra coluna entra no topo.
+   */
+  const place = (entryId: string, from: ShelfStatus, to: ShelfStatus, index: number) => {
+    if (activeFilter && from === to) return;
+    const others = board[to].filter((card) => card.entryId !== entryId).map((card) => card.entryId);
+    const at = activeFilter ? 0 : Math.max(0, Math.min(index, others.length));
+    const orderedIds = [...others.slice(0, at), entryId, ...others.slice(at)];
+    if (from === to && orderedIds.every((id, position) => id === board[to][position]?.entryId)) return; // mesma ordem
+    startTransition(async () => {
+      moveOptimistically({ entryId, status: to, orderedIds });
+      const result = await placeGameAction(entryId, to, orderedIds);
+      if (!result.ok) {
+        setNotice({ variant: 'error', title: t.failed });
+        return;
+      }
+      if (result.changed) {
+        setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status) });
+        if (to === 'zerado') setDialog({ kind: 'zeroed', entryId }); // pop-up opcional do Zerado
+      }
+    });
+  };
+
   const onSaved = (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => {
     const wasZeroedPopup = dialog?.kind === 'zeroed';
     const entryId = dialog && (dialog.kind === 'edit' || dialog.kind === 'zeroed') ? dialog.entryId : null;
@@ -216,10 +255,10 @@ export function GameShelf({
       return live ? [{ label: live.name, color: live.color }] : [];
     });
 
-  // Celular: segurar o card e arrastar (a lista rola sozinha nas bordas). Sempre com a versão mais nova de `move`.
-  const moveRef = useRef(move);
+  // Celular: segurar o card e arrastar (a lista rola sozinha nas bordas). Sempre com a versão mais nova de `place`.
+  const placeRef = useRef(place);
   useEffect(() => {
-    moveRef.current = move;
+    placeRef.current = place;
   });
   useEffect(() => {
     const container = board$.current;
@@ -228,8 +267,8 @@ export function GameShelf({
       container,
       cardSelector: '[data-entry-id]',
       onStart: (entryId, from) => setDragging({ entryId, from: from as ShelfStatus }),
-      onOver: (column) => setOver(column as ShelfStatus | null),
-      onDrop: (entryId, from, to) => moveRef.current(entryId, from as ShelfStatus, to as ShelfStatus),
+      onOver: (column, index) => setOver(column ? { status: column as ShelfStatus, index } : null),
+      onDrop: (entryId, from, to, index) => placeRef.current(entryId, from as ShelfStatus, to as ShelfStatus, index),
       onEnd: () => {
         setDragging(null);
         setOver(null);
@@ -237,12 +276,70 @@ export function GameShelf({
     });
   }, [own, coarse]);
 
-  const onDrop = (event: DragEvent, status: ShelfStatus) => {
+  const onDrop = (event: DragEvent<HTMLElement>, status: ShelfStatus) => {
     event.preventDefault();
     const drag = dragging;
+    const index = over?.status === status ? over.index : dropIndexAt(event.currentTarget, event.clientY, drag?.entryId ?? '');
     setDragging(null);
     setOver(null);
-    if (drag) move(drag.entryId, drag.from, status);
+    if (drag) place(drag.entryId, drag.from, status, index);
+  };
+
+  /** Os cards de uma coluna, com a linha branca de posição no lugar onde o card arrastado vai ficar. */
+  const renderCards = (status: ShelfStatus) => {
+    const cards = visible(status);
+    const dragId = dragging?.entryId;
+    // Com o filtro ligado não se reordena: soltar em outra coluna cai no topo.
+    const lineAt = over?.status === status && dragId ? (activeFilter ? 0 : over.index) : -1;
+    // A linha some quando soltar ali não mudaria a ordem (o card já está nessa posição).
+    const currentIndex = dragging?.from === status ? cards.findIndex((card) => card.entryId === dragId) : -1;
+    const showLine = lineAt >= 0 && !(activeFilter && dragging?.from === status) && lineAt !== currentIndex;
+    const nodes: ReactNode[] = [];
+    let position = 0; // posição entre os cards que não são o arrastado
+    for (const card of cards) {
+      if (showLine && position === lineAt && card.entryId !== dragId) nodes.push(<div key="drop-line" className={styles.dropLine} aria-hidden />);
+      if (card.entryId !== dragId) position += 1;
+      nodes.push(
+                  <div
+                    key={card.entryId}
+                    className={styles.card}
+                    data-entry-id={card.entryId}
+                    data-from={status}
+                    data-dragging={dragging?.entryId === card.entryId || undefined}
+                    draggable={own && !coarse}
+                    onDragStart={own ? (event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', card.entryId);
+                      setDragging({ entryId: card.entryId, from: status });
+                    } : undefined}
+                    onDragEnd={own ? () => { setDragging(null); setOver(null); } : undefined}
+                  >
+                    <ItemCard title={card.name} detail={card.detail || undefined} thumbnail={card.coverUrl} tags={cardTags(card)} />
+                    <button type="button" className={styles.cardOpen} aria-label={`${sm.viewEntry}: ${card.name}`} onClick={() => setDialog({ kind: 'view', entryId: card.entryId })} />
+                    {own ? (
+                      <Menu
+                        className={styles.cardMenu}
+                        label={t.actionsLabel(card.name)}
+                        trigger={<Icon name="more-horiz" size={20} />}
+                      >
+                        {SHELF_STATUSES.filter((value) => value !== status).map((value) => (
+                          <MenuOption key={value} onClick={() => move(card.entryId, status, value)}>
+                            {t.moveTo(value)}
+                          </MenuOption>
+                        ))}
+                        <MenuOption icon="edit" onClick={() => setDialog({ kind: 'edit', entryId: card.entryId })}>
+                          {t.editEntry}
+                        </MenuOption>
+                        <MenuOption icon="close" danger onClick={() => setDialog({ kind: 'remove', entryId: card.entryId, name: card.name })}>
+                          {t.removeEntry}
+                        </MenuOption>
+                      </Menu>
+                    ) : null}
+                  </div>
+      );
+    }
+    if (showLine && position <= lineAt) nodes.push(<div key="drop-line" className={styles.dropLine} aria-hidden />);
+    return nodes;
   };
 
   return (
@@ -280,52 +377,24 @@ export function GameShelf({
             key={status}
             data-column={status}
             action={own ? <IconButton icon="add" label={t.quickAddLabel(status)} variant="ghost" size="md" onClick={() => setQuickAdd(status)} /> : undefined}
-            className={over === status && dragging?.from !== status ? styles.dropTarget : undefined}
+            maxHeight={COLUMN_MAX_HEIGHT}
+            className={over?.status === status && dragging?.from !== status ? styles.dropTarget : undefined}
             title={STATUS_LABEL[status]}
             count={visible(status).length}
-            emptyMessage={over === status && dragging?.from !== status ? t.dropHere : activeFilter ? tm.filterEmpty : t.empty}
-            onDragOver={own && dragging ? (event) => { event.preventDefault(); setOver(status); } : undefined}
+            emptyMessage={over?.status === status && dragging?.from !== status ? t.dropHere : activeFilter ? tm.filterEmpty : t.empty}
+            onDragOver={
+              own && dragging
+                ? (event) => {
+                    event.preventDefault();
+                    const index = dropIndexAt(event.currentTarget, event.clientY, dragging.entryId);
+                    setOver((current) => (current?.status === status && current.index === index ? current : { status, index }));
+                  }
+                : undefined
+            }
             onDragLeave={own ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null); } : undefined}
             onDrop={own ? (event) => onDrop(event, status) : undefined}
           >
-            {visible(status).map((card) => (
-              <div
-                key={card.entryId}
-                className={styles.card}
-                data-entry-id={card.entryId}
-                data-from={status}
-                data-dragging={dragging?.entryId === card.entryId || undefined}
-                draggable={own && !coarse}
-                onDragStart={own ? (event) => {
-                  event.dataTransfer.effectAllowed = 'move';
-                  event.dataTransfer.setData('text/plain', card.entryId);
-                  setDragging({ entryId: card.entryId, from: status });
-                } : undefined}
-                onDragEnd={own ? () => { setDragging(null); setOver(null); } : undefined}
-              >
-                <ItemCard title={card.name} detail={card.detail || undefined} thumbnail={card.coverUrl} tags={cardTags(card)} />
-                <button type="button" className={styles.cardOpen} aria-label={`${sm.viewEntry}: ${card.name}`} onClick={() => setDialog({ kind: 'view', entryId: card.entryId })} />
-                {own ? (
-                  <Menu
-                    className={styles.cardMenu}
-                    label={t.actionsLabel(card.name)}
-                    trigger={<Icon name="more-horiz" size={20} />}
-                  >
-                    {SHELF_STATUSES.filter((value) => value !== status).map((value) => (
-                      <MenuOption key={value} onClick={() => move(card.entryId, status, value)}>
-                        {t.moveTo(value)}
-                      </MenuOption>
-                    ))}
-                    <MenuOption icon="edit" onClick={() => setDialog({ kind: 'edit', entryId: card.entryId })}>
-                      {t.editEntry}
-                    </MenuOption>
-                    <MenuOption icon="close" danger onClick={() => setDialog({ kind: 'remove', entryId: card.entryId, name: card.name })}>
-                      {t.removeEntry}
-                    </MenuOption>
-                  </Menu>
-                ) : null}
-              </div>
-            ))}
+            {renderCards(status)}
           </BoardColumn>
         ))}
       </div>

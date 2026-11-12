@@ -14,7 +14,7 @@ import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
 import { getPublicEntry, reportScreenshot, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
 import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
-import { addManyToShelf, addToShelf, moveEntry, QUICK_ADD_MAX, statusByIgdbId } from '@/lib/shelf/shelf';
+import { addManyToShelf, addToShelf, moveEntry, placeEntry, QUICK_ADD_MAX, statusByIgdbId } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
 
 /** Um resultado de busca, já pronto para a tela. Nada aqui vai para o banco: ao adicionar, o servidor busca o jogo de novo no IGDB. */
@@ -122,6 +122,23 @@ export async function addGamesAction(igdbIds: unknown, status: string): Promise<
   if (!result.ok) return { ok: false, error: result.error === 'too-many' ? 'too-many' : 'invalid' };
   revalidatePath('/perfil/[username]', 'page');
   return { ok: true, status, added: result.added, alreadyOnShelf: result.alreadyOnShelf };
+}
+
+export type PlaceGameResult =
+  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean }
+  | { ok: false; error: 'not-found' | 'invalid' };
+
+/**
+ * Reordenar dentro da coluna ou soltar um card numa posição de outra coluna. Recebe a lista completa, já na ordem nova,
+ * dos ids da coluna de destino. A ordem é da pessoa e quem visita o perfil vê a mesma.
+ */
+export async function placeGameAction(entryId: string, status: string, orderedIds: unknown): Promise<PlaceGameResult> {
+  const user = await requireUser();
+  if (typeof entryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entryId) || !isShelfStatus(status)) return { ok: false, error: 'invalid' };
+  const result = await placeEntry(await getDb(), user.id, entryId, status, orderedIds);
+  if (!result.ok) return { ok: false, error: result.error === 'not-found' ? 'not-found' : 'invalid' };
+  revalidatePath('/perfil/[username]', 'page');
+  return { ok: true, gameName: result.gameName, status: result.status, changed: result.changed };
 }
 
 export type MoveGameResult =
