@@ -1,7 +1,10 @@
-import Link from 'next/link';
-import { Avatar, Banner, Button, Cover, MobileTopBar, Stat, TopBar } from 'nogasds';
-import { logoutAction } from '@/app/(auth)/actions';
+import { Avatar, Banner, Button, Cover, Stat } from 'nogasds';
+import { AppTopBars } from '@/app/_components/AppTopBars';
+import { FeedList } from '@/app/feed/_components/FeedList';
+import { FollowButton } from '@/app/feed/_components/FollowButton';
 import type { CurrentUser } from '@/lib/auth/current-user';
+import type { FollowCounters } from '@/lib/feed/follows';
+import type { PostView } from '@/lib/feed/view';
 import { coverUrl } from '@/lib/igdb/igdb';
 import { mediaUrl } from '@/lib/profile/images';
 import { formatDate, profileMessages as t } from '@/lib/profile/messages';
@@ -29,35 +32,9 @@ function toShelfData(shelf: ShelfColumns): ShelfData {
   return data;
 }
 
-function TopBars({ viewer }: { viewer: CurrentUser }) {
-  const brand = (
-    <Link href="/" className={styles.brand}>
-      Garnic
-    </Link>
-  );
-  const actions = (
-    <>
-      <Link href={`/perfil/${viewer.username}`} aria-label="Meu perfil">
-        <Avatar name={viewer.name} src={mediaUrl(viewer.avatarKey)} size="md" />
-      </Link>
-      <form action={logoutAction}>
-        <Button type="submit" variant="ghost" size="sm">
-          Sair
-        </Button>
-      </form>
-    </>
-  );
-  return (
-    <>
-      <TopBar className={styles.desktopOnly} brand={brand} actions={actions} />
-      <MobileTopBar className={styles.mobileOnly} brand={brand} actions={actions} />
-    </>
-  );
-}
-
 /**
- * Perfil público (Figma: "Perfil do usuário"). Game Shelf, posts, Seguir e Denunciar aparecem como no protótipo,
- * mas ainda sem função: pertencem aos blocos Gameshelf e Feed.
+ * Perfil público (Figma: "Perfil do usuário"). Game Shelf, posts e Seguir funcionam; Denunciar ainda não (próxima
+ * entrega do Feed).
  */
 export function ProfileView({
   viewer,
@@ -66,6 +43,10 @@ export function ProfileView({
   shelf,
   counters,
   tags,
+  following,
+  followCounters,
+  posts,
+  postsNext,
 }: {
   viewer: CurrentUser;
   profile: PublicProfile;
@@ -74,12 +55,18 @@ export function ProfileView({
   counters: ShelfCounters;
   /** Tags da pessoa do perfil (para o filtro; só quem é dona também as edita). */
   tags: TagData[];
+  /** Quem está vendo já segue esta pessoa. */
+  following: boolean;
+  followCounters: FollowCounters;
+  /** Primeira página dos posts da pessoa, do mais recente para o mais antigo. */
+  posts: PostView[];
+  postsNext: string | null;
 }) {
   const own = viewer.id === profile.id;
 
   return (
     <div className={styles.page}>
-      <TopBars viewer={viewer} />
+      <AppTopBars viewer={viewer} />
       <main className={styles.content}>
         <header className={styles.head}>
           <Cover src={mediaUrl(profile.coverKey)} positionY={profile.coverPosition} />
@@ -109,7 +96,7 @@ export function ProfileView({
                     <Button variant="ghost" disabled>
                       {t.report}
                     </Button>
-                    <Button disabled>{t.follow}</Button>
+                    <FollowButton userId={profile.id} name={profile.name} initialFollowing={following} size="md" />
                   </>
                 )}
               </div>
@@ -121,10 +108,9 @@ export function ProfileView({
                 <Stat value={counters.zeroed} label={t.zeroed} />
                 <Stat value={counters.backlog} label={t.backlog} />
               </dl>
-              {/* Seguidores e Seguindo dependem do bloco Feed (seguir): 0 até lá. */}
               <dl className={styles.statGroup} aria-label="Comunidade">
-                <Stat emphasis="secondary" value={0} label={t.followers} />
-                <Stat emphasis="secondary" value={0} label={t.following} />
+                <Stat emphasis="secondary" value={followCounters.followers} label={t.followers} />
+                <Stat emphasis="secondary" value={followCounters.following} label={t.following} />
               </dl>
             </div>
           </section>
@@ -138,7 +124,11 @@ export function ProfileView({
           <h2 id="posts" className={styles.sectionTitle}>
             {t.posts}
           </h2>
-          <Banner title={t.noPostsTitle}>{own ? t.noPostsTextOwn : t.noPostsTextOther}</Banner>
+          {posts.length > 0 ? (
+            <FeedList key={posts.map((post) => `${post.id}:${post.edited ? 1 : 0}`).join(',')} initial={posts} next={postsNext} scope={{ kind: 'user', userId: profile.id }} viewerId={viewer.id} uploadMode={storageMode()} label={t.posts} />
+          ) : (
+            <Banner title={t.noPostsTitle}>{own ? t.noPostsTextOwn : t.noPostsTextOther}</Banner>
+          )}
         </section>
       </main>
     </div>

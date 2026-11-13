@@ -25,7 +25,7 @@ const emptyColumns = (): ShelfColumns => ({ 'quero-jogar': [], parado: [], jogan
  * Guarda (ou atualiza) a cópia local do jogo do IGDB e devolve o jogo. Idempotente: adicionar o mesmo jogo de novo
  * só atualiza nome, capa e plataformas.
  */
-async function saveGame(db: Db, game: IgdbGame): Promise<Game> {
+export async function saveGame(db: Db, game: IgdbGame): Promise<Game> {
   const values = {
     igdbId: game.igdbId,
     name: game.name,

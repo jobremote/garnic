@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 const instant = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -269,6 +269,52 @@ export const screenshotReports = pgTable(
     createdAt: instant('created_at').notNull().defaultNow(),
   },
   (table) => [uniqueIndex('screenshot_reports_reporter_image_key').on(table.reporterId, table.screenshotRef), index('screenshot_reports_entry_idx').on(table.entryId)],
+);
+
+/**
+ * Quem segue quem (Feed). Seguir não exige aprovação (perfil sempre público). Uma linha por par; ninguém segue a si
+ * mesmo. Sai junto com a conta de qualquer um dos dois (cascata).
+ */
+export const follows = pgTable(
+  'follows',
+  {
+    followerId: uuid('follower_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    followeeId: uuid('followee_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.followerId, table.followeeId] }),
+    index('follows_followee_idx').on(table.followeeId),
+    check('follows_not_self', sql`${table.followerId} <> ${table.followeeId}`),
+  ],
+);
+
+/**
+ * Post do Feed (`01_produto/regras-de-negocio/feed.md`): texto até 1.500 caracteres, 1 imagem e 1 jogo marcado (qualquer
+ * jogo do IGDB, não precisa estar no Game Shelf). Texto ou imagem é obrigatório (só marcar o jogo não basta). `spoiler`
+ * vale para o post inteiro (texto e imagem). `editedAt` só é preenchido depois de uma edição. Excluir o post apaga os
+ * comentários e curtidas dele (quando existirem) e a imagem fica a cargo de quem exclui (ver `src/lib/feed/posts.ts`).
+ */
+export const posts = pgTable(
+  'posts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    body: text('body').notNull().default(''),
+    /** Referência da imagem no armazenamento (`posts/...`). Nulo: post sem imagem. */
+    imageRef: text('image_ref'),
+    spoiler: boolean('spoiler').notNull().default(false),
+    gameId: uuid('game_id').references(() => games.id),
+    createdAt: instant('created_at').notNull().defaultNow(),
+    editedAt: instant('edited_at'),
+  },
+  (table) => [index('posts_created_idx').on(table.createdAt, table.id), index('posts_user_created_idx').on(table.userId, table.createdAt), index('posts_game_idx').on(table.gameId)],
 );
 
 export type User = typeof users.$inferSelect;
