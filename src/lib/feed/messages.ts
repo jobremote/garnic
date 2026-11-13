@@ -62,6 +62,8 @@ export const feedMessages = {
   pick: 'Marcar',
 
   // Quem seguir e seguir
+  viewMyProfile: 'Ver meu perfil',
+  viewProfileOf: (name: string) => `Ver perfil de ${name}`,
   whoToFollow: 'Quem seguir',
   noSuggestions: 'Ninguém novo por aqui por enquanto.', // novo
   follow: 'Seguir',

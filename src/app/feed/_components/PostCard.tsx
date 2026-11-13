@@ -29,6 +29,7 @@ export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewe
   }
 
   const profile = `/perfil/${post.username}`;
+  // Marcas de jogo: depois do conteúdo, como rodapé do post, e fora do aviso de spoiler (decisão de 13/11/2026).
   const tags =
     post.status || post.game ? (
       <>
@@ -67,7 +68,7 @@ export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewe
             </Menu>
           ) : undefined
         }
-        tags={tags}
+        tagsAfter={tags}
       >
         <SpoilerGuard active={post.spoiler}>
           {post.body ? <p className={styles.postBody}>{post.body}</p> : null}

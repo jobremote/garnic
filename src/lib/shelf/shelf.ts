@@ -224,25 +224,25 @@ export async function statusByIgdbId(db: Db, userId: string, igdbIds: number[]):
 }
 
 export interface ShelfCounters {
+  /** Jogos em Quero jogar (antes chamado Backlog; renomeado em 13/11/2026). */
+  wantToPlay: number;
   /** Total de jogos em Zerado, de qualquer ano. */
   zeroed: number;
-  /** Jogos em Quero jogar. */
-  backlog: number;
 }
 
 /**
  * Contadores do perfil (decisão de 12/11/2026): **Zerados** = total de entradas em Zerado, sem recorte por ano (nem
- * todo zerado é do ano corrente e ainda não há filtro por data). Backlog = jogos em Quero jogar.
+ * todo zerado é do ano corrente e ainda não há filtro por data). Quero jogar = jogos na coluna Quero jogar.
  */
 export async function shelfCounters(db: Db, userId: string): Promise<ShelfCounters> {
   const [row] = await db
     .select({
+      wantToPlay: sql<number>`count(*) filter (where ${shelfEntries.status} = 'quero-jogar')::int`,
       zeroed: sql<number>`count(*) filter (where ${shelfEntries.status} = 'zerado')::int`,
-      backlog: sql<number>`count(*) filter (where ${shelfEntries.status} = 'quero-jogar')::int`,
     })
     .from(shelfEntries)
     .where(eq(shelfEntries.userId, userId));
-  return { zeroed: row?.zeroed ?? 0, backlog: row?.backlog ?? 0 };
+  return { wantToPlay: row?.wantToPlay ?? 0, zeroed: row?.zeroed ?? 0 };
 }
 
 export { SHELF_STATUSES };

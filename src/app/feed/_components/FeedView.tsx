@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { Banner, Button, Link as DsLink, ProfileSummary, Stat, SuggestedAccount } from 'nogasds';
+import { Banner, ButtonLink, ProfileSummary, Stat, SuggestedAccount } from 'nogasds';
+import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
 import type { CurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
@@ -51,9 +51,7 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
       <div className={styles.empty}>
         <h2 className={styles.sideTitle}>{t.noGamesTitle}</h2>
         <p className={styles.muted}>{t.noGamesText}</p>
-        <Link href={`/perfil/${viewer.username}`}>
-          <Button>{t.addFirstGame}</Button>
-        </Link>
+        <ButtonLink href={`/perfil/${viewer.username}`}>{t.addFirstGame}</ButtonLink>
       </div>
     );
   } else {
@@ -83,14 +81,18 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
             handle={`@${viewer.username}`}
             avatar={{ src: mediaUrl(viewer.avatarKey) }}
             bio={profile?.bio ?? undefined}
+            href={`/perfil/${viewer.username}`}
+            linkLabel={t.viewMyProfile}
             stats={
-              <dl className={styles.stats}>
+              <>
+                <Stat value={counters.wantToPlay} label={p.wantToPlay} />
                 <Stat value={counters.zeroed} label={p.zeroed} />
-                <Stat value={counters.backlog} label={p.backlog} />
-              </dl>
+              </>
             }
           />
-          <DsLink href={`/perfil/${viewer.username}`}>Ver meu perfil</DsLink>
+          <ButtonLink href={`/perfil/${viewer.username}`} variant="outline" className={styles.fullWidth}>
+            {t.viewMyProfile}
+          </ButtonLink>
         </aside>
 
         <section className={styles.center} aria-label="Feed">
@@ -113,6 +115,8 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
                   name={user.name}
                   handle={`@${user.username}`}
                   avatar={{ src: mediaUrl(user.avatarKey) }}
+                  href={`/perfil/${user.username}`}
+                  linkLabel={t.viewProfileOf(user.name)}
                   action={<FollowButton userId={user.id} name={user.name} initialFollowing={false} />}
                 />
               ))
@@ -120,6 +124,7 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
           </div>
         </aside>
       </main>
+      <AppFooter />
     </div>
   );
 }
