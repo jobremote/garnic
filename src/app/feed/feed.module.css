@@ -1,0 +1,234 @@
+/*
+ * Feed: layout do protótipo ("Feed" no Figma). Desktop 1440 com três colunas (Game Shelf em resumo, feed, quem seguir);
+ * celular em coluna única. Só tokens semânticos do NogasDS.
+ */
+.page {
+  --content-width: 1304px;
+  --content-gutter: var(--nds-space-inset-xl);
+  --nds-top-bar-content-width: var(--content-width);
+  --nds-top-bar-gutter: var(--content-gutter);
+
+  min-height: 100dvh;
+  background: var(--nds-surface-base);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 640px) 320px;
+  justify-content: center;
+  align-items: start;
+  gap: var(--nds-space-gap-2xl);
+  width: 100%;
+  max-width: calc(var(--content-width) + 2 * var(--content-gutter));
+  margin: 0 auto;
+  padding: var(--nds-space-inset-2xl) var(--content-gutter) var(--nds-space-inset-4xl);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+
+.sideCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  padding: var(--nds-space-inset-xl);
+  border: var(--nds-stroke-default) solid var(--nds-border-subtle);
+  border-radius: var(--nds-radius-default);
+  background: var(--nds-surface-raised);
+}
+
+.sideTitle {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+
+.muted {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+.stats {
+  display: flex;
+  gap: var(--nds-space-gap-2xl);
+  margin: 0;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-secondary);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nds-space-gap-md);
+  padding: var(--nds-space-inset-xl);
+  border: var(--nds-stroke-default) solid var(--nds-border-subtle);
+  border-radius: var(--nds-radius-default);
+  background: var(--nds-surface-raised);
+  text-align: center;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nds-space-gap-sm);
+}
+
+/* Post */
+.postBody {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.postImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.authorLink {
+  color: inherit;
+  text-decoration: none;
+}
+.authorLink:hover {
+  text-decoration: underline;
+}
+.authorLink:focus-visible {
+  outline: var(--nds-stroke-focus) solid var(--nds-focus-ring);
+  outline-offset: 0;
+}
+.metaLink {
+  color: inherit;
+  text-decoration: none;
+}
+.metaLink:hover {
+  text-decoration: underline;
+}
+.metaLink:focus-visible {
+  outline: var(--nds-stroke-focus) solid var(--nds-focus-ring);
+  outline-offset: 0;
+}
+
+/* Criar e editar post */
+.composerWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+}
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nds-space-gap-md);
+}
+.preview {
+  position: relative;
+  width: 160px;
+  height: 100px;
+  overflow: hidden;
+  background: var(--nds-surface-sunken);
+}
+.previewRemove {
+  position: absolute;
+  top: var(--nds-space-gap-xs);
+  right: var(--nds-space-gap-xs);
+}
+.toolLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nds-space-gap-sm);
+}
+.error {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-status-danger-fg);
+}
+.hiddenInput {
+  display: none;
+}
+
+/* Janelas */
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+.resultList {
+  margin: 0;
+  padding: 0;
+}
+.hint {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+@media (max-width: 1100px) {
+  /* Sem espaço para as três colunas: some a lateral de sugestões, mantendo o resumo e o feed. */
+  .layout {
+    grid-template-columns: 240px minmax(0, 640px);
+  }
+  .right {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--nds-space-gap-xl);
+    padding: var(--nds-space-inset-lg) var(--nds-space-inset-lg) var(--nds-space-inset-xl);
+  }
+  .left {
+    display: none;
+  }
+  .stats {
+    gap: var(--nds-space-gap-xl);
+  }
+}
+
+/* Mídia do post: mesma caixa do componente Post, aqui dentro do aviso de spoiler (que cobre texto e imagem de uma vez). */
+.postMedia {
+  height: 300px;
+  margin-top: var(--nds-space-gap-lg);
+  overflow: hidden;
+  background: var(--nds-surface-sunken);
+}
+.postBody + .postMedia {
+  margin-top: var(--nds-space-gap-lg);
+}
+
+/* O compositor do NogasDS tem largura pensada para o desktop: no celular a barra de ferramentas quebra a linha. */
+.composer :global(.nds-post-composer__actions) {
+  flex-wrap: wrap;
+}

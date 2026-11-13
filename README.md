@@ -6,7 +6,7 @@ As regras de produto, o PRD e as decisões ficam na pasta de gestão do projeto 
 
 ## Estado atual
 
-Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login, recuperar senha, login e cadastro com Google e o Perfil** (ver, editar nome, @usuário e bio, trocar e remover avatar e capa; nome troca a cada 60 dias, @usuário a cada 30, com histórico interno). No perfil, Seguir, Denunciar, o botão "+" do Game Shelf e os posts são só visuais (blocos Gameshelf e Feed). As imagens ficam no **Vercel Blob** (homologação e produção; o navegador envia direto ao Blob, por causa do limite de 4,5 MB das funções da Vercel) ou, em desenvolvimento sem token, em disco local (`.data/uploads`). Sem o Blob configurado num ambiente publicado, o envio de imagem fica desabilitado, com aviso na tela. Entra nas próximas o resto do MVP (Game Shelf, feed).
+Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, login, recuperar senha, login e cadastro com Google e o Perfil** (ver, editar nome, @usuário e bio, trocar e remover avatar e capa; nome troca a cada 60 dias, @usuário a cada 30, com histórico interno). O **Game Shelf** (kanban, entradas, tags, screenshots) e a **primeira entrega do Feed** (posts com texto, imagem, jogo marcado e spoiler; editar e excluir; seguir; abas Seguindo e Meus jogos; "Quem seguir") estão prontos. Denunciar, curtir, comentar e compartilhar atividade do Game Shelf entram nas próximas entregas do Feed. As imagens ficam no **Vercel Blob** (homologação e produção; o navegador envia direto ao Blob, por causa do limite de 4,5 MB das funções da Vercel) ou, em desenvolvimento sem token, em disco local (`.data/uploads`). Sem o Blob configurado num ambiente publicado, o envio de imagem fica desabilitado, com aviso na tela. Entra nas próximas o resto do MVP (Game Shelf, feed).
 
 | Rota | O que é |
 | --- | --- |
@@ -25,10 +25,10 @@ Entregas feitas: **cadastro por e-mail, validação por código de 6 dígitos, l
 | `/redefinir-senha/concluida` | Senha atualizada |
 | `/termos`, `/privacidade` | Páginas provisórias (os textos ainda serão redigidos) |
 | `/perfil` | Leva ao perfil de quem está logado |
-| `/perfil/[username]` | Perfil de qualquer usuário (só para quem está logado): capa, avatar, nome, bio, contadores, Game Shelf e posts (estes ainda vazios). No perfil próprio, "Editar perfil" |
-| `/media/...` | Imagens de avatar e capa guardadas em disco (só desenvolvimento; na nuvem vêm direto do Blob) |
-| `/api/profile-images` | Envio de avatar e capa: entrega ao navegador o token do Blob (só para a pasta do próprio usuário) ou, em desenvolvimento, grava em disco |
-| `/` | Início provisório, só para quem está logado |
+| `/perfil/[username]` | Perfil de qualquer usuário (só para quem está logado): capa, avatar, nome, bio, contadores (Seguidores e Seguindo reais), Game Shelf e posts. No perfil próprio, "Editar perfil"; no de outra pessoa, Seguir |
+| `/media/...` | Imagens de avatar, capa, screenshot e post guardadas em disco (só desenvolvimento; na nuvem vêm direto do Blob) |
+| `/api/profile-images` | Envio de avatar, capa, screenshot e imagem de post: entrega ao navegador o token do Blob (só para a pasta do próprio usuário) ou, em desenvolvimento, grava em disco |
+| `/` | **Feed** (só para quem está logado): criar post, abas Seguindo e Meus jogos (`/?aba=meus-jogos`), cold start e "Quem seguir" |
 | `/dev/emails` | Caixa de saída de desenvolvimento (só fora de produção) |
 
 ## Stack

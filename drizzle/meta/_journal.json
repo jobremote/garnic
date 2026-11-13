@@ -71,6 +71,13 @@
       "when": 1794490329416,
       "tag": "0009_kanban_ordem",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794591488446,
+      "tag": "0010_feed_posts_e_seguir",
+      "breakpoints": true
     }
   ]
 }

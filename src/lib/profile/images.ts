@@ -2,12 +2,12 @@
 
 /** Imagens do perfil: avatar e capa. */
 export type ProfileImageKind = 'avatar' | 'cover';
-/** Todas as imagens enviadas pelas pessoas. A screenshot é da entrada da Game Shelf (decisão de 11/11/2026: até 5 MB). */
-export type ImageKind = ProfileImageKind | 'screenshot';
+/** Todas as imagens enviadas pelas pessoas. A screenshot é da entrada da Game Shelf (decisão de 11/11/2026: até 5 MB); a imagem do post do Feed segue o mesmo limite, provisório (medidas e formato ainda em aberto). */
+export type ImageKind = ProfileImageKind | 'screenshot' | 'post';
 export type ImageExt = 'jpg' | 'png' | 'webp';
 
 /** Limites: avatar, capa e screenshot até 5 MB (avatar subiu de 2 para 5 MB em 12/11/2026: fotos do rolo de câmera do celular passam de 2 MB). */
-export const IMAGE_MAX_BYTES: Record<ImageKind, number> = { avatar: 5 * 1024 * 1024, cover: 5 * 1024 * 1024, screenshot: 5 * 1024 * 1024 };
+export const IMAGE_MAX_BYTES: Record<ImageKind, number> = { avatar: 5 * 1024 * 1024, cover: 5 * 1024 * 1024, screenshot: 5 * 1024 * 1024, post: 5 * 1024 * 1024 };
 
 /** Tamanho recomendado em pixels (só orientação: a imagem é cortada para caber). */
 export const IMAGE_RECOMMENDED_SIZE: Record<ProfileImageKind, { width: number; height: number }> = {
@@ -35,7 +35,7 @@ export function checkImage(kind: ImageKind, bytes: Uint8Array): ImageCheck {
 }
 
 /** Chave de imagem válida (evita caminhos inesperados ao servir arquivos). */
-export const IMAGE_KEY_PATTERN = /^(avatars|covers|screenshots)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+export const IMAGE_KEY_PATTERN = /^(avatars|covers|screenshots|posts)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 
 /**
  * Referência de uma imagem guardada: no Vercel Blob é o endereço completo (`https://…public.blob.vercel-storage.com/…`);
@@ -47,7 +47,7 @@ export const isRemoteRef = (ref: string) => ref.startsWith('https://');
 export const mediaUrl = (ref: string | null | undefined): string | undefined =>
   ref ? (isRemoteRef(ref) ? ref : `/media/${ref}`) : undefined;
 
-export const IMAGE_FOLDER: Record<ImageKind, 'avatars' | 'covers' | 'screenshots'> = { avatar: 'avatars', cover: 'covers', screenshot: 'screenshots' };
+export const IMAGE_FOLDER: Record<ImageKind, 'avatars' | 'covers' | 'screenshots' | 'posts'> = { avatar: 'avatars', cover: 'covers', screenshot: 'screenshots', post: 'posts' };
 
 const BLOB_HOST_SUFFIX = '.public.blob.vercel-storage.com';
 const BLOB_EXT = /\.(jpg|jpeg|png|webp)$/i;
@@ -86,7 +86,7 @@ export function authorizeBlobUpload(userId: string, pathname: string, clientPayl
   } catch {
     kind = undefined;
   }
-  if (kind !== 'avatar' && kind !== 'cover' && kind !== 'screenshot') throw new Error('Tipo de imagem inválido.');
+  if (kind !== 'avatar' && kind !== 'cover' && kind !== 'screenshot' && kind !== 'post') throw new Error('Tipo de imagem inválido.');
   const prefix = `${IMAGE_FOLDER[kind]}/${userId}/`;
   const rest = pathname.slice(prefix.length);
   if (!pathname.startsWith(prefix) || rest === '' || rest.includes('/') || !BLOB_EXT.test(rest)) {
