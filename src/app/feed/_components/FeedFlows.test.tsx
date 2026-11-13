@@ -65,6 +65,21 @@ describe('post no feed', () => {
     expect(screen.getByText('Zerado')).toBeInTheDocument();
   });
 
+  it('o jogo marcado fica depois do conteúdo (rodapé do post) e fora do aviso de spoiler', () => {
+    render(<PostCard post={post({ spoiler: true, imageUrl: '/media/posts/x.png', game: { name: 'Hollow Knight' }, status: 'zerado' })} viewerId="v" uploadMode="local" />);
+    const article = screen.getByRole('article');
+    const body = within(article).getByText('Finalmente zerei.');
+    const tag = within(article).getByText('Hollow Knight');
+    // depois do texto e da imagem...
+    expect(body.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(article).getByAltText('Imagem do post').compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // ...e fora do aviso: o aviso cobre o texto, não o nome do jogo nem o status.
+    expect(within(article).getByText('Contém spoiler')).toBeInTheDocument();
+    expect(body.closest('.nds-spoiler')).not.toBeNull();
+    expect(tag.closest('.nds-spoiler')).toBeNull();
+    expect(within(article).getByText('Zerado').closest('.nds-spoiler')).toBeNull();
+  });
+
   it('com spoiler, esconde o texto atrás de um aviso com botão Mostrar', async () => {
     const user = userEvent.setup();
     render(<PostCard post={post({ spoiler: true })} viewerId="v" uploadMode="local" />);

@@ -183,14 +183,14 @@ describe('resultados da busca já na estante', () => {
 });
 
 describe('contadores', () => {
-  it('Backlog conta Quero jogar; Zerados conta todos os de Zerado, de qualquer ano', async () => {
+  it('Quero jogar conta os da coluna Quero jogar; Zerados conta todos os de Zerado, de qualquer ano', async () => {
     const userId = await account();
     await addToShelf(db, userId, game(60), 'quero-jogar', T0);
     await addToShelf(db, userId, game(61), 'quero-jogar', T0);
     await addToShelf(db, userId, game(62), 'zerado', T0);
     await addToShelf(db, userId, game(63), 'zerado', new Date('2025-06-01T12:00:00.000Z'));
     await addToShelf(db, userId, game(64), 'jogando', T0);
-    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 2, backlog: 2 });
+    expect(await shelfCounters(db, userId)).toEqual({ wantToPlay: 2, zeroed: 2 });
   });
 
   it('a data de fim não muda o contador de Zerados', async () => {
@@ -207,11 +207,11 @@ describe('contadores', () => {
     const added = await addToShelf(db, userId, game(71), 'zerado', T0);
     if (!added.ok) throw new Error('falhou');
     await moveEntry(db, userId, added.entryId, 'jogando', after(1000));
-    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 0, backlog: 0 });
+    expect(await shelfCounters(db, userId)).toEqual({ wantToPlay: 0, zeroed: 0 });
   });
 
   it('sem jogos, tudo zero', async () => {
     const userId = await account();
-    expect(await shelfCounters(db, userId)).toEqual({ zeroed: 0, backlog: 0 });
+    expect(await shelfCounters(db, userId)).toEqual({ wantToPlay: 0, zeroed: 0 });
   });
 });

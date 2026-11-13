@@ -1,4 +1,5 @@
 import { Avatar, Banner, Button, Cover, Stat } from 'nogasds';
+import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
 import { FeedList } from '@/app/feed/_components/FeedList';
 import { FollowButton } from '@/app/feed/_components/FollowButton';
@@ -105,8 +106,8 @@ export function ProfileView({
             {/* Hierarquia: os contadores de jogo (o assunto do produto) em destaque; os sociais, de apoio. */}
             <div className={styles.stats}>
               <dl className={styles.statGroup} aria-label="Jogos">
+                <Stat value={counters.wantToPlay} label={t.wantToPlay} />
                 <Stat value={counters.zeroed} label={t.zeroed} />
-                <Stat value={counters.backlog} label={t.backlog} />
               </dl>
               <dl className={styles.statGroup} aria-label="Comunidade">
                 <Stat emphasis="secondary" value={followCounters.followers} label={t.followers} />
@@ -131,6 +132,7 @@ export function ProfileView({
           )}
         </section>
       </main>
+      <AppFooter />
     </div>
   );
 }
