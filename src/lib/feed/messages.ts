@@ -1,5 +1,5 @@
 import { IMAGE_MAX_BYTES } from '@/lib/profile/images';
-import { POST_MAX, type PostErrorCode } from './posts';
+import { POST_GAMES_MAX, POST_MAX, type PostErrorCode } from './posts';
 
 const mb = (bytes: number) => `${bytes / 1024 / 1024} MB`;
 
@@ -16,6 +16,12 @@ export const feedMessages = {
   markGame: 'Marcar jogo',
   changeGame: 'Trocar jogo', // novo
   removeGame: 'Remover jogo marcado', // novo
+  gamesCount: (count: number) => `${count}/${POST_GAMES_MAX} jogos`, // novo
+  gamesLimit: `Você já marcou ${POST_GAMES_MAX} jogos, o máximo por post.`, // novo
+  mentionListLabel: 'Sugestões de jogos', // novo
+  mentionHint: 'Digite pelo menos 2 letras do nome do jogo.', // novo
+  mentionKeys: '↑ ↓ navegar · Enter escolher · Esc fechar', // novo
+  mentionTooLong: `O nome do jogo não cabe: o texto passaria de ${POST_MAX.toLocaleString('pt-BR')} caracteres.`, // novo
   spoiler: 'Contém spoiler',
   published: 'Post publicado.', // novo
   saved: 'Post atualizado.', // novo
@@ -53,7 +59,7 @@ export const feedMessages = {
   markGameTitle: 'Marcar um jogo',
   searchLabel: 'Buscar jogo',
   searchPlaceholder: 'Nome do jogo',
-  searchHint: 'Digite pelo menos 2 letras. O jogo não precisa estar no seu Game Shelf; só 1 jogo por post.',
+  searchHint: `Digite pelo menos 2 letras. O jogo não precisa estar no seu Game Shelf; até ${POST_GAMES_MAX} jogos por post.`,
   searching: 'Buscando…',
   noResultsTitle: 'Nenhum jogo encontrado',
   noResultsText: 'Confira o nome e tente de novo.',
@@ -76,6 +82,7 @@ export const feedMessages = {
   postErrors: {
     empty: 'Escreva algo ou adicione uma imagem para publicar.',
     'too-long': `O texto passou de ${POST_MAX.toLocaleString('pt-BR')} caracteres. Reduza para publicar.`,
+    'too-many-games': `Um post marca no máximo ${POST_GAMES_MAX} jogos. Tire alguns para publicar.`,
   } satisfies Record<PostErrorCode, string>,
   imageType: 'Use uma imagem JPG, PNG ou WebP.',
   imageSize: `A imagem passou de ${mb(IMAGE_MAX_BYTES.post)}.`,

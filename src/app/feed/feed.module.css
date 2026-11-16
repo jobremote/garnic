@@ -150,6 +150,11 @@
   align-items: center;
   gap: var(--nds-space-gap-md);
 }
+.gamesCount {
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-muted);
+}
 .preview {
   position: relative;
   width: 160px;

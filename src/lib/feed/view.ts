@@ -16,13 +16,12 @@ export interface PostView {
   body: string;
   imageUrl?: string;
   spoiler: boolean;
-  game?: { name: string; coverUrl?: string };
-  /** Status do jogo marcado no Game Shelf de quem postou (só quando o jogo está lá). */
-  status?: ShelfStatus;
+  /** Jogos marcados, na ordem em que foram escolhidos. `status` é o do jogo no Game Shelf de quem postou (só quando está lá). */
+  games: { igdbId: number; name: string; coverUrl?: string; status?: ShelfStatus }[];
   /** É de quem está vendo: libera editar e excluir. */
   own: boolean;
   /** Só nos posts próprios: o estado atual, para a edição abrir preenchida. */
-  edit?: { imageRef: string | null; gameIgdbId: number | null };
+  edit?: { imageRef: string | null };
 }
 
 export function toPostView(post: FeedPost, viewerId: string, now: Date): PostView {
@@ -37,9 +36,13 @@ export function toPostView(post: FeedPost, viewerId: string, now: Date): PostVie
     body: post.body,
     imageUrl: mediaUrl(post.imageRef),
     spoiler: post.spoiler,
-    game: post.game ? { name: post.game.name, coverUrl: coverUrl(post.game.coverImageId, 'cover_small') } : undefined,
-    status: post.authorStatus ?? undefined,
+    games: post.games.map((game) => ({
+      igdbId: game.igdbId,
+      name: game.name,
+      coverUrl: coverUrl(game.coverImageId, 'cover_small'),
+      status: game.status ?? undefined,
+    })),
     own,
-    edit: own ? { imageRef: post.imageRef, gameIgdbId: post.game?.igdbId ?? null } : undefined,
+    edit: own ? { imageRef: post.imageRef } : undefined,
   };
 }

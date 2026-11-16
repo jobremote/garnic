@@ -294,10 +294,11 @@ export const follows = pgTable(
 );
 
 /**
- * Post do Feed (`01_produto/regras-de-negocio/feed.md`): texto até 1.500 caracteres, 1 imagem e 1 jogo marcado (qualquer
- * jogo do IGDB, não precisa estar no Game Shelf). Texto ou imagem é obrigatório (só marcar o jogo não basta). `spoiler`
- * vale para o post inteiro (texto e imagem). `editedAt` só é preenchido depois de uma edição. Excluir o post apaga os
- * comentários e curtidas dele (quando existirem) e a imagem fica a cargo de quem exclui (ver `src/lib/feed/posts.ts`).
+ * Post do Feed (`01_produto/regras-de-negocio/feed.md`): texto até 1.500 caracteres, 1 imagem e até 10 jogos marcados
+ * (qualquer jogo do IGDB, não precisa estar no Game Shelf; ver `postGames`). Texto ou imagem é obrigatório (só marcar o
+ * jogo não basta). `spoiler` vale para o post inteiro (texto e imagem). `editedAt` só é preenchido depois de uma edição.
+ * Excluir o post apaga os comentários e curtidas dele (quando existirem) e a imagem fica a cargo de quem exclui (ver
+ * `src/lib/feed/posts.ts`).
  */
 export const posts = pgTable(
   'posts',
@@ -310,11 +311,29 @@ export const posts = pgTable(
     /** Referência da imagem no armazenamento (`posts/...`). Nulo: post sem imagem. */
     imageRef: text('image_ref'),
     spoiler: boolean('spoiler').notNull().default(false),
-    gameId: uuid('game_id').references(() => games.id),
     createdAt: instant('created_at').notNull().defaultNow(),
     editedAt: instant('edited_at'),
   },
-  (table) => [index('posts_created_idx').on(table.createdAt, table.id), index('posts_user_created_idx').on(table.userId, table.createdAt), index('posts_game_idx').on(table.gameId)],
+  (table) => [index('posts_created_idx').on(table.createdAt, table.id), index('posts_user_created_idx').on(table.userId, table.createdAt)],
+);
+
+/**
+ * Jogos marcados em um post (até 10; entrega B do Feed, 16/11/2026). `position` guarda a ordem em que a pessoa os
+ * escolheu (começa em 0). Um jogo aparece uma vez por post. Excluir o post apaga as marcas dele. Vem da migração
+ * `0011`, que copiou o antigo `posts.game_id`.
+ */
+export const postGames = pgTable(
+  'post_games',
+  {
+    postId: uuid('post_id')
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => games.id),
+    position: smallint('position').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.postId, table.gameId] }), index('post_games_game_idx').on(table.gameId), index('post_games_post_position_idx').on(table.postId, table.position)],
 );
 
 export type User = typeof users.$inferSelect;

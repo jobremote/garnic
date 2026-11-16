@@ -31,6 +31,7 @@ const post = (over: Partial<PostView> = {}): PostView => ({
   edited: false,
   body: 'Finalmente zerei.',
   spoiler: false,
+  games: [],
   own: false,
   ...over,
 });
@@ -57,16 +58,42 @@ describe('post no feed', () => {
   });
 
   it('mostra o jogo marcado e, se o jogo está no Game Shelf de quem postou, o status', () => {
-    const { unmount } = render(<PostCard post={post({ game: { name: 'Hollow Knight' } })} viewerId="v" uploadMode="local" />);
+    const { unmount } = render(<PostCard post={post({ games: [{ igdbId: 1, name: 'Hollow Knight' }] })} viewerId="v" uploadMode="local" />);
     expect(screen.getByText('Hollow Knight')).toBeInTheDocument();
     expect(screen.queryByText('Zerado')).toBeNull();
     unmount();
-    render(<PostCard post={post({ game: { name: 'Hollow Knight' }, status: 'zerado' })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ games: [{ igdbId: 1, name: 'Hollow Knight', status: 'zerado' }] })} viewerId="v" uploadMode="local" />);
     expect(screen.getByText('Zerado')).toBeInTheDocument();
   });
 
+  it('com vários jogos, agrupa por status (Zerado, Jogando, Quero jogar, Parado, sem status), com o selo uma vez por linha', () => {
+    render(
+      <PostCard
+        post={post({
+          games: [
+            { igdbId: 1, name: 'Balatro', status: 'quero-jogar' },
+            { igdbId: 2, name: 'Vampire Survivors' },
+            { igdbId: 3, name: 'Hollow Knight', status: 'zerado' },
+            { igdbId: 4, name: 'Celeste', status: 'zerado' },
+            { igdbId: 5, name: 'Hades', status: 'jogando' },
+          ],
+        })}
+        viewerId="v"
+        uploadMode="local"
+      />,
+    );
+    const rows = screen.getAllByRole('group');
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(['Zerado', 'Jogando', 'Quero jogar', null]);
+    // Dentro da linha, na ordem escolhida; o selo aparece uma vez só.
+    expect(within(rows[0]).getAllByText(/Hollow Knight|Celeste/).map((node) => node.textContent)).toEqual(['Hollow Knight', 'Celeste']);
+    expect(within(rows[0]).getAllByText('Zerado')).toHaveLength(1);
+    // A linha dos jogos fora do Game Shelf não tem selo.
+    expect(within(rows[3]).getByText('Vampire Survivors')).toBeInTheDocument();
+    expect(within(rows[3]).queryByText(/Zerado|Jogando|Quero jogar|Parado/)).toBeNull();
+  });
+
   it('o jogo marcado fica depois do conteúdo (rodapé do post) e fora do aviso de spoiler', () => {
-    render(<PostCard post={post({ spoiler: true, imageUrl: '/media/posts/x.png', game: { name: 'Hollow Knight' }, status: 'zerado' })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ spoiler: true, imageUrl: '/media/posts/x.png', games: [{ igdbId: 1, name: 'Hollow Knight', status: 'zerado' }] })} viewerId="v" uploadMode="local" />);
     const article = screen.getByRole('article');
     const body = within(article).getByText('Finalmente zerei.');
     const tag = within(article).getByText('Hollow Knight');
@@ -93,14 +120,14 @@ describe('post no feed', () => {
     const { unmount } = render(<PostCard post={post()} viewerId="v" uploadMode="local" />);
     expect(screen.queryByRole('button', { name: 'Mais opções' })).toBeNull();
     unmount();
-    render(<PostCard post={post({ own: true, edit: { imageRef: null, gameIgdbId: null } })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ own: true, edit: { imageRef: null } })} viewerId="v" uploadMode="local" />);
     expect(screen.getByRole('button', { name: 'Mais opções' })).toBeInTheDocument();
   });
 
   it('excluir pede confirmação e só chama o servidor depois dela', async () => {
     const user = userEvent.setup();
     actions.deletePostAction.mockResolvedValue({ ok: true });
-    render(<PostCard post={post({ own: true, edit: { imageRef: null, gameIgdbId: null } })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ own: true, edit: { imageRef: null } })} viewerId="v" uploadMode="local" />);
     await user.click(screen.getByRole('button', { name: 'Mais opções' }));
     await user.click(screen.getByRole('menuitem', { name: 'Excluir' }));
     const dialog = await screen.findByRole('dialog', { name: 'Excluir este post?' });
@@ -112,7 +139,7 @@ describe('post no feed', () => {
   it('editar abre a janela com o texto atual e salva só o que mudou', async () => {
     const user = userEvent.setup();
     actions.updatePostAction.mockResolvedValue({ ok: true });
-    render(<PostCard post={post({ own: true, edit: { imageRef: null, gameIgdbId: null } })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ own: true, edit: { imageRef: null } })} viewerId="v" uploadMode="local" />);
     await user.click(screen.getByRole('button', { name: 'Mais opções' }));
     await user.click(screen.getByRole('menuitem', { name: 'Editar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Editar post' });
@@ -120,14 +147,14 @@ describe('post no feed', () => {
     expect(field).toHaveValue('Finalmente zerei.');
     await user.type(field, ' Muito bom.');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-    // Sem `imageRef` e sem `igdbId`: o servidor mantém a imagem e o jogo como estão.
+    // Sem `imageRef` e sem `igdbIds`: o servidor mantém a imagem e os jogos como estão.
     expect(actions.updatePostAction).toHaveBeenCalledWith('p1', { body: 'Finalmente zerei. Muito bom.', spoiler: false });
   });
 
   it('a janela de edição mostra o erro do servidor e continua aberta', async () => {
     const user = userEvent.setup();
     actions.updatePostAction.mockResolvedValue({ ok: false, error: 'not-found' });
-    render(<PostCard post={post({ own: true, edit: { imageRef: null, gameIgdbId: null } })} viewerId="v" uploadMode="local" />);
+    render(<PostCard post={post({ own: true, edit: { imageRef: null } })} viewerId="v" uploadMode="local" />);
     await user.click(screen.getByRole('button', { name: 'Mais opções' }));
     await user.click(screen.getByRole('menuitem', { name: 'Editar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Editar post' });
@@ -151,7 +178,11 @@ describe('criar post', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Marcar um jogo' });
     await user.type(within(dialog).getByRole('searchbox', { name: 'Buscar jogo' }), 'cel');
     await user.click(await within(dialog).findByRole('button', { name: 'Marcar Celeste' }, { timeout: 3000 }));
-    expect(screen.getByText('Celeste')).toBeInTheDocument();
+    // O botão dá o mesmo resultado do "@": o nome entra no texto e o jogo na lista de marcados.
+    expect(screen.getByRole('textbox', { name: 'Escrever um post' })).toHaveValue('@Celeste ');
+    expect(screen.getByRole('button', { name: /Remover jogo marcado: Celeste/ })).toBeInTheDocument();
+    expect(screen.getByText('1/10 jogos')).toBeInTheDocument();
+    // Só marcar o jogo não basta: o "@Nome" não conta como texto.
     expect(publish()).toBeDisabled();
 
     await user.type(screen.getByRole('textbox', { name: 'Escrever um post' }), 'Joguei hoje');
@@ -171,10 +202,69 @@ describe('criar post', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Marcar Celeste' }, { timeout: 3000 }));
     await user.click(screen.getByRole('switch', { name: 'Contém spoiler' }));
     await user.click(publish());
-    expect(actions.createPostAction).toHaveBeenCalledWith({ body: 'Que jogo!', imageRef: null, spoiler: true, igdbId: 7 });
+    expect(actions.createPostAction).toHaveBeenCalledWith({ body: 'Que jogo! @Celeste ', imageRef: null, spoiler: true, igdbIds: [7] });
     await waitFor(() => expect(field).toHaveValue(''));
     expect(await screen.findByText('Post publicado.')).toBeInTheDocument();
-    expect(screen.queryByText('Celeste')).toBeNull();
+    expect(screen.queryByText('1/10 jogos')).toBeNull();
+  });
+
+  it('digitar "@" abre a lista de sugestões; Enter escolhe, põe "@Nome" no texto e marca o jogo', async () => {
+    const user = userEvent.setup();
+    actions.createPostAction.mockResolvedValue({ ok: true });
+    shelfActions.searchGamesAction.mockResolvedValue({
+      ok: true,
+      results: [
+        { igdbId: 7, name: 'Celeste', detail: '2018 · PC' },
+        { igdbId: 8, name: 'Celeste Classic', detail: '2015 · PC' },
+      ],
+    });
+    render(composer());
+    const field = screen.getByRole('textbox', { name: 'Escrever um post' });
+    await user.type(field, 'Zerei o @cel');
+    const list = await screen.findByRole('listbox', { name: 'Sugestões de jogos' }, { timeout: 3000 });
+    expect(within(list).getAllByRole('option')).toHaveLength(2);
+    expect(shelfActions.searchGamesAction).toHaveBeenCalledWith('cel');
+    // Seta para baixo escolhe a segunda; Enter confirma.
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(field).toHaveValue('Zerei o @Celeste Classic ');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByText('1/10 jogos')).toBeInTheDocument();
+    await user.type(field, 'e adorei');
+    await user.click(publish());
+    expect(actions.createPostAction).toHaveBeenCalledWith({ body: 'Zerei o @Celeste Classic e adorei', imageRef: null, spoiler: false, igdbIds: [8] });
+  });
+
+  it('Esc fecha a lista sem marcar nada; apagar o "@Nome" do texto tira o jogo da lista', async () => {
+    const user = userEvent.setup();
+    shelfActions.searchGamesAction.mockResolvedValue({ ok: true, results: [{ igdbId: 7, name: 'Celeste', detail: '2018 · PC' }] });
+    render(composer());
+    const field = screen.getByRole('textbox', { name: 'Escrever um post' });
+    await user.type(field, '@cel');
+    await screen.findByRole('listbox', { name: 'Sugestões de jogos' }, { timeout: 3000 });
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.queryByText('1/10 jogos')).toBeNull();
+
+    await user.clear(field);
+    await user.type(field, '@cel');
+    await user.click(await screen.findByRole('option', { name: /Celeste/ }, { timeout: 3000 }));
+    expect(field).toHaveValue('@Celeste ');
+    expect(screen.getByText('1/10 jogos')).toBeInTheDocument();
+    // Apagar o nome do texto tira o jogo da lista.
+    await user.type(field, '{Backspace}{Backspace}');
+    expect(screen.queryByText('1/10 jogos')).toBeNull();
+  });
+
+  it('remover a etiqueta tira o jogo da lista; o texto fica como está', async () => {
+    const user = userEvent.setup();
+    shelfActions.searchGamesAction.mockResolvedValue({ ok: true, results: [{ igdbId: 7, name: 'Celeste', detail: '2018 · PC' }] });
+    render(composer());
+    const field = screen.getByRole('textbox', { name: 'Escrever um post' });
+    await user.type(field, '@cel');
+    await user.click(await screen.findByRole('option', { name: /Celeste/ }, { timeout: 3000 }));
+    await user.click(screen.getByRole('button', { name: /Remover jogo marcado: Celeste/ }));
+    expect(screen.queryByText('1/10 jogos')).toBeNull();
+    expect(field).toHaveValue('@Celeste ');
   });
 
   it('só com imagem também publica (texto ou imagem)', async () => {
@@ -187,7 +277,7 @@ describe('criar post', () => {
     await waitFor(() => expect(publish()).toBeEnabled());
     expect(upload.uploadImage).toHaveBeenCalledWith('local', 'post', file, 'u1');
     await user.click(publish());
-    expect(actions.createPostAction).toHaveBeenCalledWith({ body: '', imageRef: 'posts/abc.png', spoiler: false, igdbId: null });
+    expect(actions.createPostAction).toHaveBeenCalledWith({ body: '', imageRef: 'posts/abc.png', spoiler: false, igdbIds: [] });
   });
 
   it('recusa arquivo que não é imagem e arquivo pesado, sem enviar', async () => {

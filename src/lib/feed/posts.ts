@@ -1,37 +1,57 @@
 import { and, desc, eq, inArray, isNotNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
-import { follows, games, posts, shelfEntries, users } from '@/lib/db/schema';
+import { follows, games, postGames, posts, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { saveGame } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
+import { withoutMentions } from './mentions';
 
 /** Regras do post (`01_produto/regras-de-negocio/feed.md`). */
 export const POST_MAX = 1500;
+/** Quantos jogos um post pode marcar (decidido em 13/11/2026; antes era 1). */
+export const POST_GAMES_MAX = 10;
 /** Quantos posts vêm por página (o resto carrega em "Ver mais"). */
 export const PAGE_SIZE = 20;
 /** Meus jogos: posts que marcam jogos do Game Shelf em Quero jogar, Jogando ou Zerado. Parado não entra. */
 export const MY_GAMES_STATUSES: readonly ShelfStatus[] = ['quero-jogar', 'jogando', 'zerado'];
 
-export type PostErrorCode = 'empty' | 'too-long';
+export type PostErrorCode = 'empty' | 'too-long' | 'too-many-games';
 
 /** Texto do post: quebras de linha preservadas (\r\n vira \n), pontas aparadas. */
 export const normalizePostBody = (value: unknown): string => (typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '');
 
-/** Texto ou imagem é obrigatório (só marcar o jogo não basta); o texto vai até 1.500 caracteres. */
-export function validatePost(body: string, hasImage: boolean): PostErrorCode | null {
+/**
+ * Texto ou imagem é obrigatório (só marcar o jogo não basta); o texto vai até 1.500 caracteres. O "@Nome" dos jogos
+ * marcados (`marked`) não conta como texto: um post só com menções é só marcar o jogo.
+ */
+export function validatePost(body: string, hasImage: boolean, marked: readonly { name: string }[] = []): PostErrorCode | null {
   if (body.length > POST_MAX) return 'too-long';
-  if (body === '' && !hasImage) return 'empty';
+  if (withoutMentions(body, marked) === '' && !hasImage) return 'empty';
   return null;
 }
 
-/** Como o jogo marcado muda numa edição. */
-export type GameChange = { kind: 'keep' } | { kind: 'none' } | { kind: 'set'; game: IgdbGame };
+/** Como os jogos marcados mudam numa edição: `keep` mantém a lista; `set` troca pela lista nova (vazia tira todos). */
+export type GamesChange = { kind: 'keep' } | { kind: 'set'; games: IgdbGame[] };
 
 export interface NewPost {
   body: unknown;
   imageRef?: string | null;
   spoiler?: unknown;
-  game?: IgdbGame | null;
+  /** Jogos marcados, na ordem em que foram escolhidos (até 10; repetidos contam uma vez). */
+  games?: IgdbGame[];
+}
+
+/** Tira jogos repetidos (pelo id do IGDB), mantendo a ordem da primeira aparição. */
+function uniqueGames(list: IgdbGame[] | undefined): IgdbGame[] {
+  const seen = new Set<number>();
+  return (list ?? []).filter((game) => (seen.has(game.igdbId) ? false : (seen.add(game.igdbId), true)));
+}
+
+/** Guarda os jogos (se ainda não existirem) e devolve os ids internos, na mesma ordem. */
+async function saveGames(db: Db, list: IgdbGame[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const game of list) ids.push((await saveGame(db, game)).id);
+  return ids;
 }
 
 export type CreatePostResult = { ok: true; postId: string } | { ok: false; error: PostErrorCode };
@@ -39,13 +59,16 @@ export type CreatePostResult = { ok: true; postId: string } | { ok: false; error
 export async function createPost(db: Db, userId: string, input: NewPost, now = new Date()): Promise<CreatePostResult> {
   const body = normalizePostBody(input.body);
   const imageRef = input.imageRef ? input.imageRef : null;
-  const error = validatePost(body, imageRef !== null);
+  const list = uniqueGames(input.games);
+  const error = validatePost(body, imageRef !== null, list);
   if (error) return { ok: false, error };
-  const gameId = input.game ? (await saveGame(db, input.game)).id : null;
+  if (list.length > POST_GAMES_MAX) return { ok: false, error: 'too-many-games' };
+  const gameIds = await saveGames(db, list);
   const [row] = await db
     .insert(posts)
-    .values({ userId, body, imageRef, spoiler: input.spoiler === true, gameId, createdAt: now })
+    .values({ userId, body, imageRef, spoiler: input.spoiler === true, createdAt: now })
     .returning({ id: posts.id });
+  if (gameIds.length > 0) await db.insert(postGames).values(gameIds.map((gameId, position) => ({ postId: row.id, gameId, position })));
   return { ok: true, postId: row.id };
 }
 
@@ -54,7 +77,7 @@ export interface PostEdit {
   /** `undefined` mantém a imagem; `null` tira; texto troca (a referência já vem conferida). */
   imageRef?: string | null;
   spoiler?: unknown;
-  game: GameChange;
+  games: GamesChange;
 }
 
 export type UpdatePostResult =
@@ -71,16 +94,32 @@ export async function updatePost(db: Db, userId: string, postId: string, input: 
 
   const body = normalizePostBody(input.body);
   const imageRef = input.imageRef === undefined ? current.imageRef : input.imageRef;
-  const error = validatePost(body, imageRef !== null);
-  if (error) return { ok: false, error };
   const spoiler = input.spoiler === true;
-  let gameId = current.gameId;
-  if (input.game.kind === 'none') gameId = null;
-  else if (input.game.kind === 'set') gameId = (await saveGame(db, input.game.game)).id;
 
-  const changed = body !== current.body || imageRef !== current.imageRef || spoiler !== current.spoiler || gameId !== current.gameId;
+  const currentGames = await db
+    .select({ gameId: postGames.gameId, name: games.name })
+    .from(postGames)
+    .innerJoin(games, eq(games.id, postGames.gameId))
+    .where(eq(postGames.postId, current.id))
+    .orderBy(postGames.position);
+  const currentGameIds = currentGames.map((row) => row.gameId);
+  const nextList = input.games.kind === 'set' ? uniqueGames(input.games.games) : null;
+  const error = validatePost(body, imageRef !== null, nextList ?? currentGames);
+  if (error) return { ok: false, error };
+  let nextGameIds = currentGameIds;
+  if (nextList) {
+    if (nextList.length > POST_GAMES_MAX) return { ok: false, error: 'too-many-games' };
+    nextGameIds = await saveGames(db, nextList);
+  }
+  const gamesChanged = nextGameIds.length !== currentGameIds.length || nextGameIds.some((id, index) => id !== currentGameIds[index]);
+
+  const changed = body !== current.body || imageRef !== current.imageRef || spoiler !== current.spoiler || gamesChanged;
   if (!changed) return { ok: true, edited: false, replacedImageRef: null };
-  await db.update(posts).set({ body, imageRef, spoiler, gameId, editedAt: now }).where(eq(posts.id, current.id));
+  await db.update(posts).set({ body, imageRef, spoiler, editedAt: now }).where(eq(posts.id, current.id));
+  if (gamesChanged) {
+    await db.delete(postGames).where(eq(postGames.postId, current.id));
+    if (nextGameIds.length > 0) await db.insert(postGames).values(nextGameIds.map((gameId, position) => ({ postId: current.id, gameId, position })));
+  }
   return { ok: true, edited: true, replacedImageRef: current.imageRef && current.imageRef !== imageRef ? current.imageRef : null };
 }
 
@@ -92,7 +131,15 @@ export async function deletePost(db: Db, userId: string, postId: string): Promis
   return row ? { ok: true, imageRef: row.imageRef } : { ok: false, error: 'not-found' };
 }
 
-/** Post como a tela precisa. O jogo e o status vêm prontos; só o necessário do autor. */
+/** Jogo marcado em um post. `status` é o do jogo no Game Shelf de quem postou (nulo se o jogo não está lá). */
+export interface PostGame {
+  igdbId: number;
+  name: string;
+  coverImageId: string | null;
+  status: ShelfStatus | null;
+}
+
+/** Post como a tela precisa. Os jogos e os status vêm prontos, na ordem em que foram escolhidos; só o necessário do autor. */
 export interface FeedPost {
   id: string;
   body: string;
@@ -101,9 +148,7 @@ export interface FeedPost {
   createdAt: Date;
   editedAt: Date | null;
   author: { id: string; name: string; username: string; avatarKey: string | null };
-  game: { igdbId: number; name: string; coverImageId: string | null } | null;
-  /** Status do jogo marcado no Game Shelf de quem postou (nulo se o jogo não está lá). */
-  authorStatus: ShelfStatus | null;
+  games: PostGame[];
 }
 
 /** De onde vêm os posts. */
@@ -155,13 +200,11 @@ function condition(filter: FeedFilter): SQL | undefined {
         inArray(posts.userId, sql`(select ${follows.followeeId} from ${follows} where ${follows.followerId} = ${filter.viewerId})`),
       );
     case 'my-games':
-      return inArray(
-        posts.gameId,
-        sql`(select ${shelfEntries.gameId} from ${shelfEntries} where ${shelfEntries.userId} = ${filter.viewerId} and ${shelfEntries.status} in (${sql.join(
-          MY_GAMES_STATUSES.map((status) => sql`${status}`),
-          sql`, `,
-        )}))`,
-      );
+      // Entra o post que marca QUALQUER jogo do Game Shelf de quem vê em Quero jogar, Jogando ou Zerado.
+      return sql`exists (select 1 from ${postGames} inner join ${shelfEntries} on ${shelfEntries.gameId} = ${postGames.gameId} where ${postGames.postId} = ${posts.id} and ${shelfEntries.userId} = ${filter.viewerId} and ${shelfEntries.status} in (${sql.join(
+        MY_GAMES_STATUSES.map((status) => sql`${status}`),
+        sql`, `,
+      )}))`;
     case 'user':
       return eq(posts.userId, filter.userId);
     case 'all':
@@ -190,20 +233,37 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       authorName: users.name,
       authorUsername: users.username,
       authorAvatarKey: users.avatarKey,
-      gameIgdbId: games.igdbId,
-      gameName: games.name,
-      gameCover: games.coverImageId,
-      authorStatus: shelfEntries.status,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.userId))
-    .leftJoin(games, eq(games.id, posts.gameId))
-    .leftJoin(shelfEntries, and(eq(shelfEntries.userId, posts.userId), eq(shelfEntries.gameId, posts.gameId)))
     .where(where)
     .orderBy(desc(posts.createdAt), desc(posts.id))
     .limit(limit + 1);
 
   const page = rows.slice(0, limit);
+  // Jogos marcados da página, de uma vez só, com o status de cada um no Game Shelf de quem postou.
+  const gamesByPost = new Map<string, PostGame[]>();
+  if (page.length > 0) {
+    const marked = await db
+      .select({
+        postId: postGames.postId,
+        igdbId: games.igdbId,
+        name: games.name,
+        cover: games.coverImageId,
+        status: shelfEntries.status,
+      })
+      .from(postGames)
+      .innerJoin(posts, eq(posts.id, postGames.postId))
+      .innerJoin(games, eq(games.id, postGames.gameId))
+      .leftJoin(shelfEntries, and(eq(shelfEntries.userId, posts.userId), eq(shelfEntries.gameId, postGames.gameId)))
+      .where(inArray(postGames.postId, page.map((row) => row.id)))
+      .orderBy(postGames.postId, postGames.position);
+    for (const row of marked) {
+      const list = gamesByPost.get(row.postId) ?? [];
+      list.push({ igdbId: row.igdbId, name: row.name, coverImageId: row.cover, status: isShelfStatus(row.status) ? row.status : null });
+      gamesByPost.set(row.postId, list);
+    }
+  }
   const list: FeedPost[] = page.map((row) => ({
     id: row.id,
     body: row.body,
@@ -212,8 +272,7 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
     createdAt: new Date(row.createdAt),
     editedAt: row.editedAt ? new Date(row.editedAt) : null,
     author: { id: row.authorId, name: row.authorName, username: row.authorUsername, avatarKey: row.authorAvatarKey },
-    game: row.gameName !== null && row.gameIgdbId !== null ? { igdbId: row.gameIgdbId, name: row.gameName, coverImageId: row.gameCover } : null,
-    authorStatus: isShelfStatus(row.authorStatus) ? row.authorStatus : null,
+    games: gamesByPost.get(row.id) ?? [],
   }));
   const last = list[list.length - 1];
   return { posts: list, next: rows.length > limit && last ? encodeCursor({ at: last.createdAt, id: last.id }) : null };
