@@ -2,12 +2,12 @@ import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { registerUser } from '@/lib/auth/users';
 import type { Db } from '@/lib/db/connect';
-import { users } from '@/lib/db/schema';
+import { postGames, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { addToShelf } from '@/lib/shelf/shelf';
 import { createTestDb, validSignup } from '@/test/db';
 import { followCounters, followUser, isFollowing, suggestedUsers, unfollowUser } from './follows';
-import { createPost, decodeCursor, deletePost, encodeCursor, listPosts, normalizePostBody, PAGE_SIZE, POST_MAX, updatePost, validatePost } from './posts';
+import { createPost, decodeCursor, deletePost, encodeCursor, listPosts, normalizePostBody, PAGE_SIZE, POST_GAMES_MAX, POST_MAX, updatePost, validatePost } from './posts';
 import { timeAgo } from './time';
 
 const T0 = new Date('2026-11-13T12:00:00.000Z');
@@ -61,33 +61,70 @@ describe('criar, editar e excluir post', () => {
     expect(result.ok).toBe(true);
     const page = await listPosts(db, { kind: 'user', userId });
     expect(page.posts).toHaveLength(1);
-    expect(page.posts[0]).toMatchObject({ body: 'Primeiro post', imageRef: null, spoiler: false, editedAt: null, game: null, authorStatus: null });
+    expect(page.posts[0]).toMatchObject({ body: 'Primeiro post', imageRef: null, spoiler: false, editedAt: null, games: [] });
   });
 
   it('cria um post só com imagem, com jogo marcado e spoiler', async () => {
     const userId = await account();
-    const result = await createPost(db, userId, { body: '', imageRef: 'posts/a.jpg', spoiler: true, game: game(10, 'Celeste') }, T0);
+    const result = await createPost(db, userId, { body: '', imageRef: 'posts/a.jpg', spoiler: true, games: [game(10, 'Celeste')] }, T0);
     expect(result.ok).toBe(true);
     const [post] = (await listPosts(db, { kind: 'user', userId })).posts;
-    expect(post).toMatchObject({ body: '', imageRef: 'posts/a.jpg', spoiler: true, game: { igdbId: 10, name: 'Celeste', coverImageId: 'co10' } });
+    expect(post).toMatchObject({ body: '', imageRef: 'posts/a.jpg', spoiler: true });
+    expect(post.games).toEqual([{ igdbId: 10, name: 'Celeste', coverImageId: 'co10', status: null }]);
+  });
+
+  it('marca vários jogos, guarda a ordem escolhida e conta repetidos uma vez só', async () => {
+    const userId = await account();
+    const result = await createPost(db, userId, { body: 'Três jogos', games: [game(50, 'C'), game(51, 'A'), game(50, 'C'), game(52, 'B')] }, T0);
+    expect(result.ok).toBe(true);
+    const [post] = (await listPosts(db, { kind: 'user', userId })).posts;
+    expect(post.games.map((item) => item.name)).toEqual(['C', 'A', 'B']);
+  });
+
+  it(`aceita até ${POST_GAMES_MAX} jogos e recusa mais que isso`, async () => {
+    const userId = await account();
+    const ten = Array.from({ length: POST_GAMES_MAX }, (_, i) => game(600 + i));
+    expect((await createPost(db, userId, { body: 'Dez', games: ten }, T0)).ok).toBe(true);
+    const eleven = [...ten, game(700)];
+    expect(await createPost(db, userId, { body: 'Onze', games: eleven }, T0)).toEqual({ ok: false, error: 'too-many-games' });
+    const created = await createPost(db, userId, { body: 'Editar' }, after(5));
+    if (!created.ok) throw new Error('post');
+    expect(await updatePost(db, userId, created.postId, { body: 'Editar', games: { kind: 'set', games: eleven } }, after(6))).toEqual({ ok: false, error: 'too-many-games' });
   });
 
   it('recusa post vazio e post só com o jogo marcado', async () => {
     const userId = await account();
     expect(await createPost(db, userId, { body: '   ' }, T0)).toEqual({ ok: false, error: 'empty' });
-    expect(await createPost(db, userId, { body: '', game: game(11) }, T0)).toEqual({ ok: false, error: 'empty' });
+    expect(await createPost(db, userId, { body: '', games: [game(11)] }, T0)).toEqual({ ok: false, error: 'empty' });
+    // O "@Nome" do jogo marcado não conta como texto.
+    expect(await createPost(db, userId, { body: '@Jogo 11', games: [game(11)] }, T0)).toEqual({ ok: false, error: 'empty' });
+    expect((await createPost(db, userId, { body: '@Jogo 11 que jogo!', games: [game(11)] }, T0)).ok).toBe(true);
     expect(await createPost(db, userId, { body: 'a'.repeat(POST_MAX + 1) }, T0)).toEqual({ ok: false, error: 'too-long' });
-    expect((await listPosts(db, { kind: 'user', userId })).posts).toHaveLength(0);
+    // Só um dos posts acima foi criado (o último, com texto de verdade).
+    expect((await listPosts(db, { kind: 'user', userId })).posts).toHaveLength(1);
   });
 
   it('o jogo marcado não precisa estar no Game Shelf; com status, mostra o do autor', async () => {
     const userId = await account();
-    await createPost(db, userId, { body: 'Fora do Game Shelf', game: game(20) }, after(1));
+    await createPost(db, userId, { body: 'Fora do Game Shelf', games: [game(20)] }, after(1));
     await addToShelf(db, userId, game(21, 'Hades'), 'jogando', T0);
-    await createPost(db, userId, { body: 'Dentro do Game Shelf', game: game(21, 'Hades') }, after(2));
+    await createPost(db, userId, { body: 'Dentro do Game Shelf', games: [game(21, 'Hades')] }, after(2));
     const [dentro, fora] = (await listPosts(db, { kind: 'user', userId })).posts;
-    expect(dentro.authorStatus).toBe('jogando');
-    expect(fora.authorStatus).toBeNull();
+    expect(dentro.games[0].status).toBe('jogando');
+    expect(fora.games[0].status).toBeNull();
+  });
+
+  it('com vários jogos, cada um mostra o próprio status no Game Shelf de quem postou', async () => {
+    const userId = await account();
+    await addToShelf(db, userId, game(80, 'Zerado'), 'zerado', T0);
+    await addToShelf(db, userId, game(81, 'Quero'), 'quero-jogar', T0);
+    await createPost(db, userId, { body: 'Mistura', games: [game(81, 'Quero'), game(82, 'Fora'), game(80, 'Zerado')] }, after(1));
+    const [post] = (await listPosts(db, { kind: 'user', userId })).posts;
+    expect(post.games.map((item) => [item.name, item.status])).toEqual([
+      ['Quero', 'quero-jogar'],
+      ['Fora', null],
+      ['Zerado', 'zerado'],
+    ]);
   });
 
   it('edita só o próprio post e marca "editado" apenas quando algo mudou', async () => {
@@ -96,36 +133,52 @@ describe('criar, editar e excluir post', () => {
     const created = await createPost(db, dona, { body: 'Texto original' }, T0);
     if (!created.ok) throw new Error('post');
 
-    expect(await updatePost(db, outra, created.postId, { body: 'Invasão', game: { kind: 'keep' } }, after(10))).toEqual({ ok: false, error: 'not-found' });
+    expect(await updatePost(db, outra, created.postId, { body: 'Invasão', games: { kind: 'keep' } }, after(10))).toEqual({ ok: false, error: 'not-found' });
 
-    const same = await updatePost(db, dona, created.postId, { body: 'Texto original', game: { kind: 'keep' } }, after(20));
+    const same = await updatePost(db, dona, created.postId, { body: 'Texto original', games: { kind: 'keep' } }, after(20));
     expect(same).toMatchObject({ ok: true, edited: false });
     expect((await listPosts(db, { kind: 'user', userId: dona })).posts[0].editedAt).toBeNull();
 
-    const changed = await updatePost(db, dona, created.postId, { body: 'Texto novo', spoiler: true, game: { kind: 'set', game: game(30, 'Hollow Knight') } }, after(30));
+    const changed = await updatePost(db, dona, created.postId, { body: 'Texto novo', spoiler: true, games: { kind: 'set', games: [game(30, 'Hollow Knight')] } }, after(30));
     expect(changed).toMatchObject({ ok: true, edited: true });
     const [post] = (await listPosts(db, { kind: 'user', userId: dona })).posts;
-    expect(post).toMatchObject({ body: 'Texto novo', spoiler: true, game: { name: 'Hollow Knight' } });
+    expect(post).toMatchObject({ body: 'Texto novo', spoiler: true });
+    expect(post.games.map((item) => item.name)).toEqual(['Hollow Knight']);
     expect(post.editedAt?.getTime()).toBe(after(30).getTime());
+  });
+
+  it('trocar a lista de jogos (ou só a ordem) marca "editado"; mandar a mesma lista não', async () => {
+    const userId = await account();
+    const created = await createPost(db, userId, { body: 'Lista', games: [game(90, 'A'), game(91, 'B')] }, T0);
+    if (!created.ok) throw new Error('post');
+    const same = await updatePost(db, userId, created.postId, { body: 'Lista', games: { kind: 'set', games: [game(90, 'A'), game(91, 'B')] } }, after(1));
+    expect(same).toMatchObject({ ok: true, edited: false });
+    const reorder = await updatePost(db, userId, created.postId, { body: 'Lista', games: { kind: 'set', games: [game(91, 'B'), game(90, 'A')] } }, after(2));
+    expect(reorder).toMatchObject({ ok: true, edited: true });
+    expect((await listPosts(db, { kind: 'user', userId })).posts[0].games.map((item) => item.name)).toEqual(['B', 'A']);
   });
 
   it('trocar ou tirar a imagem devolve a antiga para ser apagada, e a edição não deixa o post vazio', async () => {
     const userId = await account();
     const created = await createPost(db, userId, { body: '', imageRef: 'posts/old.jpg' }, T0);
     if (!created.ok) throw new Error('post');
-    expect(await updatePost(db, userId, created.postId, { body: '', imageRef: null, game: { kind: 'keep' } }, after(1))).toEqual({ ok: false, error: 'empty' });
-    const swap = await updatePost(db, userId, created.postId, { body: '', imageRef: 'posts/new.jpg', game: { kind: 'keep' } }, after(2));
+    expect(await updatePost(db, userId, created.postId, { body: '', imageRef: null, games: { kind: 'keep' } }, after(1))).toEqual({ ok: false, error: 'empty' });
+    const swap = await updatePost(db, userId, created.postId, { body: '', imageRef: 'posts/new.jpg', games: { kind: 'keep' } }, after(2));
     expect(swap).toEqual({ ok: true, edited: true, replacedImageRef: 'posts/old.jpg' });
-    const remove = await updatePost(db, userId, created.postId, { body: 'Agora com texto', imageRef: null, game: { kind: 'keep' } }, after(3));
+    const remove = await updatePost(db, userId, created.postId, { body: 'Agora com texto', imageRef: null, games: { kind: 'keep' } }, after(3));
     expect(remove).toEqual({ ok: true, edited: true, replacedImageRef: 'posts/new.jpg' });
   });
 
-  it('tirar o jogo marcado funciona', async () => {
+  it('tirar os jogos marcados funciona, e excluir o post apaga as marcas dele', async () => {
     const userId = await account();
-    const created = await createPost(db, userId, { body: 'Com jogo', game: game(40) }, T0);
+    const created = await createPost(db, userId, { body: 'Com jogo', games: [game(40)] }, T0);
     if (!created.ok) throw new Error('post');
-    await updatePost(db, userId, created.postId, { body: 'Com jogo', game: { kind: 'none' } }, after(1));
-    expect((await listPosts(db, { kind: 'user', userId })).posts[0].game).toBeNull();
+    await updatePost(db, userId, created.postId, { body: 'Com jogo', games: { kind: 'set', games: [] } }, after(1));
+    expect((await listPosts(db, { kind: 'user', userId })).posts[0].games).toEqual([]);
+    const other = await createPost(db, userId, { body: 'Outro', games: [game(41)] }, after(2));
+    if (!other.ok) throw new Error('post');
+    expect(await deletePost(db, userId, other.postId)).toMatchObject({ ok: true });
+    expect((await db.select().from(postGames).where(eq(postGames.postId, other.postId))).length).toBe(0);
   });
 
   it('só quem postou exclui, e a imagem volta para ser apagada', async () => {
@@ -159,10 +212,30 @@ describe('abas do feed', () => {
     await addToShelf(db, eu, game(102), 'jogando', T0);
     await addToShelf(db, eu, game(103), 'zerado', T0);
     await addToShelf(db, eu, game(104), 'parado', T0);
-    for (const [i, id] of [101, 102, 103, 104, 105].entries()) await createPost(db, autora, { body: `sobre ${id}`, game: game(id) }, after(i));
+    for (const [i, id] of [101, 102, 103, 104, 105].entries()) await createPost(db, autora, { body: `sobre ${id}`, games: [game(id)] }, after(i));
     await createPost(db, autora, { body: 'sem jogo' }, after(10));
     const bodies = (await listPosts(db, { kind: 'my-games', viewerId: eu })).posts.map((post) => post.body).sort();
     expect(bodies).toEqual(['sobre 101', 'sobre 102', 'sobre 103']);
+  });
+
+  it('Meus jogos considera QUALQUER jogo marcado: basta um elegível, e só um Parado ou fora do Game Shelf não basta', async () => {
+    const eu = await account();
+    const autora = await account();
+    await addToShelf(db, eu, game(201), 'jogando', T0);
+    await addToShelf(db, eu, game(202), 'parado', T0);
+    await createPost(db, autora, { body: 'mistura com elegível', games: [game(299), game(202), game(201)] }, after(1));
+    await createPost(db, autora, { body: 'só parado e de fora', games: [game(202), game(298)] }, after(2));
+    const bodies = (await listPosts(db, { kind: 'my-games', viewerId: eu })).posts.map((post) => post.body);
+    expect(bodies).toEqual(['mistura com elegível']);
+  });
+
+  it('um post com vários jogos elegíveis aparece uma vez só em Meus jogos', async () => {
+    const eu = await account();
+    const autora = await account();
+    await addToShelf(db, eu, game(211), 'jogando', T0);
+    await addToShelf(db, eu, game(212), 'zerado', T0);
+    await createPost(db, autora, { body: 'dois elegíveis', games: [game(211), game(212)] }, after(1));
+    expect((await listPosts(db, { kind: 'my-games', viewerId: eu })).posts).toHaveLength(1);
   });
 
   it('posts de contas não validadas não aparecem', async () => {

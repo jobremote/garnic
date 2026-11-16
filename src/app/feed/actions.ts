@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { followUser, unfollowUser } from '@/lib/feed/follows';
-import { createPost, decodeCursor, deletePost, filterFor, listPosts, updatePost, type FeedScope, type GameChange, type PostErrorCode } from '@/lib/feed/posts';
+import { createPost, decodeCursor, deletePost, filterFor, listPosts, POST_GAMES_MAX, updatePost, type FeedScope, type GamesChange, type PostErrorCode } from '@/lib/feed/posts';
 import { toPostView, type PostView } from '@/lib/feed/view';
 import { getIgdbClient, IgdbError, type IgdbGame } from '@/lib/igdb/igdb';
 import { isAcceptableImageRef } from '@/lib/profile/images';
@@ -32,8 +32,8 @@ interface Draft {
   body: string;
   spoiler: boolean;
   imageRef: string | null | undefined;
-  /** `undefined`: mantém (só na edição); `null`: sem jogo; número: id do IGDB. */
-  igdbId: number | null | undefined;
+  /** `undefined`: mantém a lista (só na edição); lista: ids do IGDB, na ordem escolhida (vazia tira todos). */
+  igdbIds: number[] | undefined;
 }
 
 /** Lê o que veio do navegador sem confiar em nada: tipos, tamanho e referência da imagem (só a pasta da própria pessoa). */
@@ -46,12 +46,12 @@ function parseDraft(input: unknown, allowKeep: boolean): Draft | null {
   else if (raw.imageRef === null || raw.imageRef === undefined) imageRef = null;
   else if (typeof raw.imageRef === 'string') imageRef = raw.imageRef;
   else return null;
-  let igdbId: number | null | undefined;
-  if (raw.igdbId === undefined && allowKeep) igdbId = undefined;
-  else if (raw.igdbId === null || raw.igdbId === undefined) igdbId = null;
-  else if (typeof raw.igdbId === 'number' && Number.isSafeInteger(raw.igdbId)) igdbId = raw.igdbId;
+  let igdbIds: number[] | undefined;
+  if (raw.igdbIds === undefined && allowKeep) igdbIds = undefined;
+  else if (raw.igdbIds === undefined || raw.igdbIds === null) igdbIds = [];
+  else if (Array.isArray(raw.igdbIds) && raw.igdbIds.length <= POST_GAMES_MAX && raw.igdbIds.every((id) => typeof id === 'number' && Number.isSafeInteger(id))) igdbIds = raw.igdbIds as number[];
   else return null;
-  return { body: raw.body, spoiler: raw.spoiler === true, imageRef, igdbId };
+  return { body: raw.body, spoiler: raw.spoiler === true, imageRef, igdbIds };
 }
 
 /** Imagem nova: tem que ser da pasta da própria pessoa e ser mesmo uma imagem (formato e peso conferidos no armazenamento). */
@@ -72,7 +72,18 @@ async function findGame(igdbId: number): Promise<{ ok: true; game: IgdbGame } | 
   }
 }
 
-/** Publica um post: texto ou imagem (obrigatório), 1 jogo marcado (opcional, qualquer jogo do IGDB) e spoiler. */
+/** Busca no IGDB todos os jogos da lista, na ordem; para no primeiro que falhar. */
+async function findGames(igdbIds: number[]): Promise<{ ok: true; games: IgdbGame[] } | { ok: false; error: 'game-not-found' | 'game-unavailable' }> {
+  const games: IgdbGame[] = [];
+  for (const igdbId of [...new Set(igdbIds)]) {
+    const found = await findGame(igdbId);
+    if (!found.ok) return found;
+    games.push(found.game);
+  }
+  return { ok: true, games };
+}
+
+/** Publica um post: texto ou imagem (obrigatório), até 10 jogos marcados (opcionais, quaisquer jogos do IGDB) e spoiler. */
 export async function createPostAction(input: unknown): Promise<PostActionResult> {
   const user = await requireUser();
   const draft = parseDraft(input, false);
@@ -80,16 +91,12 @@ export async function createPostAction(input: unknown): Promise<PostActionResult
   const imageRef = draft.imageRef ?? null;
   if (imageRef !== null && !(await imageIsValid(user.id, imageRef))) return { ok: false, error: 'invalid-image' };
 
-  let game: IgdbGame | null = null;
-  if (draft.igdbId !== null && draft.igdbId !== undefined) {
-    const found = await findGame(draft.igdbId);
-    if (!found.ok) {
-      await deleteImage(imageRef);
-      return found;
-    }
-    game = found.game;
+  const found = await findGames(draft.igdbIds ?? []);
+  if (!found.ok) {
+    await deleteImage(imageRef);
+    return found;
   }
-  const result = await createPost(await getDb(), user.id, { body: draft.body, imageRef, spoiler: draft.spoiler, game });
+  const result = await createPost(await getDb(), user.id, { body: draft.body, imageRef, spoiler: draft.spoiler, games: found.games });
   if (!result.ok) {
     await deleteImage(imageRef);
     return result;
@@ -105,17 +112,16 @@ export async function updatePostAction(postId: unknown, input: unknown): Promise
   if (typeof postId !== 'string' || !UUID.test(postId) || !draft) return { ok: false, error: 'invalid' };
   if (typeof draft.imageRef === 'string' && !(await imageIsValid(user.id, draft.imageRef))) return { ok: false, error: 'invalid-image' };
 
-  let game: GameChange = { kind: 'keep' };
-  if (draft.igdbId === null) game = { kind: 'none' };
-  else if (typeof draft.igdbId === 'number') {
-    const found = await findGame(draft.igdbId);
+  let games: GamesChange = { kind: 'keep' };
+  if (draft.igdbIds !== undefined) {
+    const found = await findGames(draft.igdbIds);
     if (!found.ok) {
       if (typeof draft.imageRef === 'string') await deleteImage(draft.imageRef);
       return found;
     }
-    game = { kind: 'set', game: found.game };
+    games = { kind: 'set', games: found.games };
   }
-  const result = await updatePost(await getDb(), user.id, postId, { body: draft.body, imageRef: draft.imageRef, spoiler: draft.spoiler, game });
+  const result = await updatePost(await getDb(), user.id, postId, { body: draft.body, imageRef: draft.imageRef, spoiler: draft.spoiler, games });
   if (!result.ok) {
     if (typeof draft.imageRef === 'string') await deleteImage(draft.imageRef);
     return result;

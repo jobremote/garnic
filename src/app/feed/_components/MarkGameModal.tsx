@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Button, Modal, ResultItem, SearchField } from 'nogasds';
 import { feedMessages as t } from '@/lib/feed/messages';
-import { searchGamesAction, type GameResult } from '@/app/perfil/shelf-actions';
+import type { GameResult } from '@/app/perfil/shelf-actions';
 import styles from '../feed.module.css';
+import { useGameSearch, type SearchState } from './use-game-search';
 
 /** Jogo escolhido para o post. Só o que a tela precisa; ao publicar o servidor busca o jogo no IGDB de novo. */
 export interface MarkedGame {
@@ -13,31 +14,14 @@ export interface MarkedGame {
   coverUrl?: string;
 }
 
-type SearchState =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'done'; results: GameResult[] }
-  | { kind: 'error'; error: 'not-configured' | 'unavailable' };
-
-/** Buscar um jogo no IGDB e marcá-lo no post (Figma: Marcar jogo). O jogo não precisa estar no Game Shelf. */
+/**
+ * Buscar um jogo no IGDB e marcá-lo no post (Figma: Marcar jogo). O jogo não precisa estar no Game Shelf. Pelo botão
+ * "Marcar jogo" o resultado é o mesmo do "@": o nome entra no texto e o jogo na lista (quem usa a janela cuida disso).
+ */
 export function MarkGameModal({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (game: MarkedGame) => void }) {
   const [query, setQuery] = useState('');
-  const [search, setSearch] = useState<SearchState>({ kind: 'idle' });
-  const latest = useRef(0);
   const text = query.trim();
-
-  // Mesma espera de 250 ms da busca do Game Shelf; respostas atrasadas de buscas antigas são ignoradas.
-  useEffect(() => {
-    if (text.length < 2) return;
-    const id = ++latest.current;
-    const timer = setTimeout(async () => {
-      setSearch({ kind: 'loading' });
-      const response = await searchGamesAction(text);
-      if (id !== latest.current) return;
-      setSearch(response.ok ? { kind: 'done', results: response.results } : { kind: 'error', error: response.error });
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [text]);
+  const search = useGameSearch(text, open);
 
   return (
     <Modal open={open} onClose={onClose} title={t.markGameTitle}>
@@ -57,7 +41,6 @@ export function MarkGameModal({ open, onClose, onPick }: { open: boolean; onClos
           onPick={(game) => {
             onPick({ igdbId: game.igdbId, name: game.name, coverUrl: game.coverUrl });
             setQuery('');
-            setSearch({ kind: 'idle' });
           }}
         />
       </div>

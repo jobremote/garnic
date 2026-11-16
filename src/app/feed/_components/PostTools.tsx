@@ -3,19 +3,22 @@
 import { useRef, useState } from 'react';
 import { Button, IconButton, Switch, Tag } from 'nogasds';
 import { feedMessages as t } from '@/lib/feed/messages';
+import { POST_GAMES_MAX } from '@/lib/feed/posts';
 import { IMAGE_ACCEPT } from '@/lib/profile/images';
 import styles from '../feed.module.css';
-import { MarkGameModal } from './MarkGameModal';
+import { MarkGameModal, type MarkedGame } from './MarkGameModal';
 import type { PostDraftApi } from './use-post-draft';
 
 /**
  * Ferramentas do post (Figma: Criar post): imagem, marcar jogo e "contém spoiler". Serve ao compositor e à janela de
- * edição. O jogo marcado aparece como etiqueta removível; a janela de busca abre aqui.
+ * edição. O botão "Marcar jogo" abre a janela de busca e dá o mesmo resultado do "@": `onPickGame` põe o "@Nome" no
+ * texto e o jogo na lista (ver `useMentions`).
  */
-export function PostTools({ api, disabled }: { api: PostDraftApi; disabled?: boolean }) {
+export function PostTools({ api, disabled, onPickGame }: { api: PostDraftApi; disabled?: boolean; onPickGame: (game: MarkedGame) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [marking, setMarking] = useState(false);
   const { draft } = api;
+  const full = draft.games.length >= POST_GAMES_MAX;
 
   return (
     <>
@@ -33,24 +36,36 @@ export function PostTools({ api, disabled }: { api: PostDraftApi; disabled?: boo
         }}
       />
       <IconButton icon="image" label={t.addImage} size="sm" onClick={() => input.current?.click()} disabled={disabled || api.uploading} type="button" />
-      {draft.game ? (
-        <Tag onRemove={() => api.setGame(null)} removeLabel={t.removeGame}>
-          {draft.game.name}
-        </Tag>
-      ) : (
-        <Button variant="ghost" size="sm" type="button" onClick={() => setMarking(true)} disabled={disabled}>
-          {t.markGame}
-        </Button>
-      )}
+      <Button variant="ghost" size="sm" type="button" onClick={() => setMarking(true)} disabled={disabled || full}>
+        {t.markGame}
+      </Button>
       <Switch label={t.spoiler} checked={draft.spoiler} onChange={(event) => api.setSpoiler(event.target.checked)} disabled={disabled} />
       <MarkGameModal
         open={marking}
         onClose={() => setMarking(false)}
         onPick={(game) => {
-          api.setGame(game);
+          onPickGame(game);
           setMarking(false);
         }}
       />
+    </>
+  );
+}
+
+/** Jogos marcados no post, como etiquetas removíveis, com o contador "n/10 jogos". Não mostra nada sem jogos. */
+export function MarkedGames({ api }: { api: PostDraftApi }) {
+  const { games } = api.draft;
+  if (games.length === 0) return null;
+  return (
+    <>
+      {games.map((game) => (
+        <Tag key={game.igdbId} onRemove={() => api.removeGame(game.igdbId)} removeLabel={`${t.removeGame}: ${game.name}`}>
+          {game.name}
+        </Tag>
+      ))}
+      <span className={styles.gamesCount} aria-live="polite">
+        {t.gamesCount(games.length)}
+      </span>
     </>
   );
 }

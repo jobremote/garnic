@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Badge, Button, MediaTag, Menu, MenuOption, Modal, Icon, Post, SpoilerGuard } from 'nogasds';
+import { Badge, Button, GroupedTags, MediaTag, Menu, MenuOption, Modal, Icon, Post, SpoilerGuard } from 'nogasds';
+import { groupByStatus } from '@/lib/feed/groups';
 import { feedMessages as t } from '@/lib/feed/messages';
 import type { PostView } from '@/lib/feed/view';
 import { STATUS_LABEL } from '@/lib/shelf/status';
@@ -29,14 +30,20 @@ export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewe
   }
 
   const profile = `/perfil/${post.username}`;
-  // Marcas de jogo: depois do conteúdo, como rodapé do post, e fora do aviso de spoiler (decisão de 13/11/2026).
-  const tags =
-    post.status || post.game ? (
-      <>
-        {post.status ? <Badge tone={STATUS_TONE[post.status]}>{STATUS_LABEL[post.status]}</Badge> : null}
-        {post.game ? <MediaTag thumbnail={post.game.coverUrl}>{post.game.name}</MediaTag> : null}
-      </>
-    ) : undefined;
+  // Marcas de jogo: depois do conteúdo, como rodapé do post, e fora do aviso de spoiler (decisão de 13/11/2026). Em
+  // linhas por status (Zerado, Jogando, Quero jogar, Parado e, por último, os que não estão no Game Shelf de quem
+  // postou, sem selo), com um divisor em cima de cada uma (decisão de 16/11/2026).
+  const groups = groupByStatus(post.games).map((group) => ({
+    id: group.status ?? 'sem-status',
+    name: group.status ? STATUS_LABEL[group.status] : undefined,
+    label: group.status ? <Badge tone={STATUS_TONE[group.status]}>{STATUS_LABEL[group.status]}</Badge> : undefined,
+    children: group.items.map((game) => (
+      <MediaTag key={game.igdbId} thumbnail={game.coverUrl}>
+        {game.name}
+      </MediaTag>
+    )),
+  }));
+  const tags = groups.length > 0 ? <GroupedTags groups={groups} /> : undefined;
 
   return (
     <>
