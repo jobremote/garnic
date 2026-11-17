@@ -395,6 +395,37 @@ export const commentLikes = pgTable(
   (table) => [primaryKey({ columns: [table.commentId, table.userId] }), index('comment_likes_user_idx').on(table.userId)],
 );
 
+/**
+ * Denúncia de post, comentário ou usuário (entrega 3 do Feed, 17/11/2026). Só registra para revisão futura: não
+ * esconde nada nem tem painel (mesma regra da denúncia de screenshot). Exatamente um dos três alvos é preenchido.
+ * `reason`: inappropriate, spam, spoiler ou other; `details`: texto opcional de até 500 caracteres. Uma denúncia por
+ * pessoa e alvo. Se o alvo for excluído (ou a conta, no caso do usuário), as denúncias dele saem junto.
+ */
+export const reports = pgTable(
+  'reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reporterId: uuid('reporter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    postId: uuid('post_id').references(() => posts.id, { onDelete: 'cascade' }),
+    commentId: uuid('comment_id').references(() => comments.id, { onDelete: 'cascade' }),
+    reportedUserId: uuid('reported_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    details: text('details'),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    check('reports_one_target', sql`num_nonnulls(${table.postId}, ${table.commentId}, ${table.reportedUserId}) = 1`),
+    uniqueIndex('reports_reporter_post_key').on(table.reporterId, table.postId),
+    uniqueIndex('reports_reporter_comment_key').on(table.reporterId, table.commentId),
+    uniqueIndex('reports_reporter_user_key').on(table.reporterId, table.reportedUserId),
+    index('reports_post_idx').on(table.postId),
+    index('reports_comment_idx').on(table.commentId),
+    index('reports_user_idx').on(table.reportedUserId),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Game = typeof games.$inferSelect;

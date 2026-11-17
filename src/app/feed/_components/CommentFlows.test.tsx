@@ -15,6 +15,9 @@ const actions = vi.hoisted(() => ({
 }));
 vi.mock('../comment-actions', () => actions);
 
+const reportActions = vi.hoisted(() => ({ reportAction: vi.fn() }));
+vi.mock('../report-actions', () => reportActions);
+
 const navigation = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => navigation }));
 
@@ -136,9 +139,11 @@ describe('comentários da página do post', () => {
     expect(screen.queryByRole('menuitem', { name: 'Ocultar' })).toBeNull();
   });
 
-  it('quem não é autor nem dono do post não tem menu', () => {
+  it('quem não é autor nem dono do post só tem Denunciar no menu', async () => {
+    const user = userEvent.setup();
     render(thread([comment()]));
-    expect(screen.queryByRole('button', { name: 'Mais opções do comentário' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Mais opções do comentário' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Denunciar']);
   });
 
   it('o autor edita pelo menu e salva o texto novo', async () => {
@@ -191,5 +196,43 @@ describe('comentários da página do post', () => {
     expect(actions.loadCommentsAction).toHaveBeenCalledWith('p1', 'cursor');
     expect(screen.getAllByText('Boa dica!')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Ver mais comentários' })).toBeNull();
+  });
+});
+
+describe('denunciar comentário', () => {
+  it('quem não é o autor vê Denunciar no menu; o autor não', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(thread([comment()]));
+    await user.click(screen.getByRole('button', { name: 'Mais opções do comentário' }));
+    expect(screen.getByRole('menuitem', { name: 'Denunciar' })).toBeInTheDocument();
+    unmount();
+    render(thread([comment({ own: true })]));
+    await user.click(screen.getByRole('button', { name: 'Mais opções do comentário' }));
+    expect(screen.queryByRole('menuitem', { name: 'Denunciar' })).toBeNull();
+  });
+
+  it('o dono do post tem Ocultar e Denunciar; comentário oculto ou excluído não tem Denunciar para quem não lê', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(thread([comment({ canModerate: true })]));
+    await user.click(screen.getByRole('button', { name: 'Mais opções do comentário' }));
+    expect(screen.getByRole('menuitem', { name: 'Ocultar' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Denunciar' })).toBeInTheDocument();
+    unmount();
+    render(thread([comment({ status: 'deleted', body: null }), comment({ id: 'c2', status: 'hidden', body: null })]));
+    expect(screen.queryByRole('button', { name: 'Mais opções do comentário' })).toBeNull();
+  });
+
+  it('abre a denúncia do comentário e envia o motivo', async () => {
+    const user = userEvent.setup();
+    reportActions.reportAction.mockResolvedValue({ ok: true, alreadyReported: false });
+    render(thread([comment()]));
+    await user.click(screen.getByRole('button', { name: 'Mais opções do comentário' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Denunciar' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Denunciar comentário')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('radio', { name: 'Conteúdo inadequado' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar denúncia' }));
+    await waitFor(() => expect(reportActions.reportAction).toHaveBeenCalledWith('comment', 'c1', 'inappropriate', ''));
+    expect(await screen.findByText('Denúncia enviada. Obrigado, vamos analisar.')).toBeInTheDocument();
   });
 });
