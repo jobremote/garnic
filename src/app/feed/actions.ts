@@ -165,7 +165,7 @@ export async function loadMorePostsAction(scope: unknown, cursor: unknown): Prom
   if (kind === 'following' || kind === 'my-games' || kind === 'all') parsed = { kind };
   else if (kind === 'user' && typeof (scope as { userId?: unknown }).userId === 'string' && UUID.test((scope as { userId: string }).userId)) parsed = { kind: 'user', userId: (scope as { userId: string }).userId };
   else return { ok: false };
-  const page = await listPosts(await getDb(), filterFor(parsed, viewer.id), { before });
+  const page = await listPosts(await getDb(), filterFor(parsed, viewer.id), { before, viewerId: viewer.id });
   const now = new Date();
   return { ok: true, posts: page.posts.map((post) => toPostView(post, viewer.id, now)), next: page.next };
 }

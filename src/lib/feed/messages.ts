@@ -1,4 +1,5 @@
 import { IMAGE_MAX_BYTES } from '@/lib/profile/images';
+import { COMMENT_MAX, type CommentErrorCode } from './comments';
 import { POST_GAMES_MAX, POST_MAX, type PostErrorCode } from './posts';
 
 const mb = (bytes: number) => `${bytes / 1024 / 1024} MB`;
@@ -78,6 +79,45 @@ export const feedMessages = {
   followError: 'Não foi possível atualizar. Tente de novo.', // novo
   followersLabel: 'Seguidores',
   followingLabel: 'Seguindo',
+
+  // Curtir e comentar (entrega 2)
+  backToFeed: 'Voltar ao feed', // novo
+  like: 'Curtir', // novo
+  unlike: 'Remover curtida', // novo
+  comment: 'Comentar', // novo
+  likeError: 'Não foi possível atualizar a curtida. Tente de novo.', // novo
+  commentsTitle: 'Comentários', // novo
+  commentsCount: (count: number) => `Comentários · ${count}`, // novo
+  commentFieldLabel: 'Escrever um comentário', // novo
+  commentPlaceholder: 'Escreva um comentário', // novo
+  commentPublish: 'Comentar', // novo
+  replyFieldLabel: 'Escrever uma resposta', // novo
+  replyPlaceholder: 'Escreva uma resposta', // novo
+  replyPublish: 'Responder', // novo
+  reply: 'Responder', // novo
+  cancelReply: 'Cancelar', // novo
+  commentCounter: (count: number) => `${count}/${COMMENT_MAX}`, // novo
+  commentsEmpty: 'Ainda não há comentários. Seja a primeira pessoa a comentar.', // novo
+  commentsLoadMore: 'Ver mais comentários', // novo
+  commentsLoadError: 'Não foi possível carregar os comentários. Tente de novo.', // novo
+  commentMore: 'Mais opções do comentário', // novo
+  commentEdit: 'Editar', // novo
+  commentEditLabel: 'Editar comentário', // novo
+  commentSave: 'Salvar', // novo
+  commentDelete: 'Excluir', // novo
+  commentDeleteTitle: 'Excluir este comentário?', // novo
+  commentDeleteText: 'Se ele tiver respostas, elas continuam, e no lugar do texto fica "Comentário excluído". Isso não pode ser desfeito.', // novo
+  commentHide: 'Ocultar', // novo
+  commentShowAgain: 'Mostrar de novo', // novo
+  commentHiddenNotice: 'Comentário oculto pelo autor do post.', // novo
+  commentHiddenOwnerNotice: 'Oculto para os outros leitores. Só você e o autor do post veem o texto.', // novo
+  commentDeletedNotice: 'Comentário excluído.', // novo
+  commentEdited: 'editado', // novo
+  commentErrors: {
+    empty: 'Escreva algo para comentar.',
+    'too-long': `O comentário passou de ${COMMENT_MAX} caracteres. Reduza para publicar.`,
+  } satisfies Record<CommentErrorCode, string>,
+  commentNotFound: 'Não encontramos esse comentário. Ele pode ter sido excluído.', // novo
 
   postErrors: {
     empty: 'Escreva algo ou adicione uma imagem para publicar.',

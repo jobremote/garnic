@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const instant = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -334,6 +334,65 @@ export const postGames = pgTable(
     position: smallint('position').notNull(),
   },
   (table) => [primaryKey({ columns: [table.postId, table.gameId] }), index('post_games_game_idx').on(table.gameId), index('post_games_post_position_idx').on(table.postId, table.position)],
+);
+
+/**
+ * Curtida de post (entrega 2 do Feed, 17/11/2026): uma por pessoa e post, sem lista pública de quem curtiu (só o
+ * contador). Sai junto com o post ou com a conta.
+ */
+export const postLikes = pgTable(
+  'post_likes',
+  {
+    postId: uuid('post_id')
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.postId, table.userId] }), index('post_likes_user_idx').on(table.userId)],
+);
+
+/**
+ * Comentário (entrega 2 do Feed): só texto, até 500 caracteres, com 1 nível de resposta (`parentId` aponta para um
+ * comentário de 1º nível). `hiddenAt`: o dono do post ocultou (o texto só aparece para ele e para o autor do
+ * comentário; as respostas saem junto). `deletedAt`: o autor excluiu um comentário que tem respostas, então fica o
+ * registro sem texto ("Comentário excluído"); sem respostas, a linha é apagada de vez. Excluir o post apaga tudo.
+ */
+export const comments = pgTable(
+  'comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    postId: uuid('post_id')
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    parentId: uuid('parent_id').references((): AnyPgColumn => comments.id, { onDelete: 'cascade' }),
+    body: text('body').notNull().default(''),
+    createdAt: instant('created_at').notNull().defaultNow(),
+    editedAt: instant('edited_at'),
+    hiddenAt: instant('hidden_at'),
+    deletedAt: instant('deleted_at'),
+  },
+  (table) => [index('comments_post_created_idx').on(table.postId, table.createdAt, table.id), index('comments_parent_idx').on(table.parentId), index('comments_user_idx').on(table.userId)],
+);
+
+/** Curtida de comentário (ou resposta): uma por pessoa, só o contador é público. Sai junto com o comentário ou a conta. */
+export const commentLikes = pgTable(
+  'comment_likes',
+  {
+    commentId: uuid('comment_id')
+      .notNull()
+      .references(() => comments.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.commentId, table.userId] }), index('comment_likes_user_idx').on(table.userId)],
 );
 
 export type User = typeof users.$inferSelect;

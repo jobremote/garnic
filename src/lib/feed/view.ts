@@ -20,6 +20,9 @@ export interface PostView {
   games: { igdbId: number; name: string; coverUrl?: string; status?: ShelfStatus }[];
   /** É de quem está vendo: libera editar e excluir. */
   own: boolean;
+  likeCount: number;
+  liked: boolean;
+  commentCount: number;
   /** Só nos posts próprios: o estado atual, para a edição abrir preenchida. */
   edit?: { imageRef: string | null };
 }
@@ -42,6 +45,9 @@ export function toPostView(post: FeedPost, viewerId: string, now: Date): PostVie
       coverUrl: coverUrl(game.coverImageId, 'cover_small'),
       status: game.status ?? undefined,
     })),
+    likeCount: post.likeCount,
+    liked: post.liked,
+    commentCount: post.commentCount,
     own,
     edit: own ? { imageRef: post.imageRef } : undefined,
   };
