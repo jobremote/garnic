@@ -13,6 +13,7 @@ import type { UploadMode } from '@/app/perfil/_components/upload-image';
 import { deletePostAction } from '../actions';
 import styles from '../feed.module.css';
 import { EditPostModal } from './EditPostModal';
+import { ReportDialog } from './ReportDialog';
 import { useLike } from './use-like';
 
 /** Post do feed (Figma: Post). Com spoiler, o texto e a imagem ficam atrás de um só aviso. O menu é só de quem postou. */
@@ -20,6 +21,7 @@ export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: Post
   const router = useRouter();
   const like = useLike('post', post.id, { liked: post.liked, count: post.likeCount });
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,16 +84,20 @@ export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: Post
           </>
         }
         menu={
-          post.own ? (
-            <Menu label={t.more} trigger={<Icon name="more-horiz" />}>
-              <MenuOption icon="edit" onClick={() => setEditing(true)}>
-                {t.edit}
-              </MenuOption>
-              <MenuOption danger onClick={() => setDeleting(true)}>
-                {t.remove}
-              </MenuOption>
-            </Menu>
-          ) : undefined
+          <Menu label={t.more} trigger={<Icon name="more-horiz" />}>
+            {post.own ? (
+              <>
+                <MenuOption icon="edit" onClick={() => setEditing(true)}>
+                  {t.edit}
+                </MenuOption>
+                <MenuOption danger onClick={() => setDeleting(true)}>
+                  {t.remove}
+                </MenuOption>
+              </>
+            ) : (
+              <MenuOption onClick={() => setReporting(true)}>{t.report}</MenuOption>
+            )}
+          </Menu>
         }
         tagsAfter={tags}
       >
@@ -105,6 +111,7 @@ export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: Post
           ) : null}
         </SpoilerGuard>
       </Post>
+      {reporting ? <ReportDialog kind="post" id={post.id} onClose={() => setReporting(false)} /> : null}
       {editing ? <EditPostModal post={post} userId={viewerId} uploadMode={uploadMode} onClose={() => setEditing(false)} /> : null}
       <Modal
         open={deleting}

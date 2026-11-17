@@ -279,3 +279,31 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* Denúncia: opções de motivo e aviso fixo embaixo, no centro. */
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.toast {
+  position: fixed;
+  z-index: 20;
+  bottom: var(--nds-space-inset-xl);
+  left: 50%;
+  width: min(480px, calc(100vw - 2 * var(--nds-space-inset-xl)));
+  transform: translateX(-50%);
+}

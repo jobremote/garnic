@@ -8,6 +8,7 @@ import { feedMessages as t } from '@/lib/feed/messages';
 import { createCommentAction, deleteCommentAction, editCommentAction, hideCommentAction } from '../comment-actions';
 import styles from '../feed.module.css';
 import { CommentForm } from './CommentForm';
+import { ReportDialog } from './ReportDialog';
 import { useLike } from './use-like';
 
 /**
@@ -19,6 +20,7 @@ export function CommentItem({ comment, postId, reply = false, onChanged }: { com
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,8 +74,9 @@ export function CommentItem({ comment, postId, reply = false, onChanged }: { com
   const canEdit = comment.own && readable;
   const canDelete = comment.own && comment.status !== 'deleted';
   const canHide = comment.canModerate && comment.status === 'default';
+  const canReport = !comment.own && readable;
   const menu =
-    canEdit || canDelete || canHide ? (
+    canEdit || canDelete || canHide || canReport ? (
       <Menu label={t.commentMore} trigger={<Icon name="more-horiz" />}>
         {canEdit ? (
           <MenuOption icon="edit" onClick={() => setEditing(true)}>
@@ -85,6 +88,7 @@ export function CommentItem({ comment, postId, reply = false, onChanged }: { com
             {t.commentHide}
           </MenuOption>
         ) : null}
+        {canReport ? <MenuOption onClick={() => setReporting(true)}>{t.report}</MenuOption> : null}
         {canDelete ? (
           <MenuOption danger onClick={() => setDeleting(true)}>
             {t.commentDelete}
@@ -160,6 +164,7 @@ export function CommentItem({ comment, postId, reply = false, onChanged }: { com
       {comment.replies.map((item) => (
         <CommentItem key={item.id} comment={item} postId={postId} reply onChanged={onChanged} />
       ))}
+      {reporting ? <ReportDialog kind="comment" id={comment.id} onClose={() => setReporting(false)} /> : null}
       <Modal
         open={deleting}
         onClose={() => setDeleting(false)}

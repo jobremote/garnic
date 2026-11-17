@@ -20,6 +20,9 @@ vi.mock('../actions', () => actions);
 const commentActions = vi.hoisted(() => ({ setLikeAction: vi.fn() }));
 vi.mock('../comment-actions', () => commentActions);
 
+const reportActions = vi.hoisted(() => ({ reportAction: vi.fn() }));
+vi.mock('../report-actions', () => reportActions);
+
 const navigation = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => navigation }));
 
@@ -125,12 +128,19 @@ describe('post no feed', () => {
     expect(screen.getByText('Finalmente zerei.')).toBeInTheDocument();
   });
 
-  it('só quem postou tem o menu de editar e excluir', () => {
+  it('só quem postou edita e exclui; os outros só denunciam', async () => {
+    const user = userEvent.setup();
     const { unmount } = render(<PostCard post={post()} viewerId="v" uploadMode="local" />);
-    expect(screen.queryByRole('button', { name: 'Mais opções' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Mais opções' }));
+    expect(screen.getByRole('menuitem', { name: 'Denunciar' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Editar' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Excluir' })).toBeNull();
     unmount();
     render(<PostCard post={post({ own: true, edit: { imageRef: null } })} viewerId="v" uploadMode="local" />);
-    expect(screen.getByRole('button', { name: 'Mais opções' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mais opções' }));
+    expect(screen.getByRole('menuitem', { name: 'Editar' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Excluir' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Denunciar' })).toBeNull();
   });
 
   it('excluir pede confirmação e só chama o servidor depois dela', async () => {
@@ -407,5 +417,70 @@ describe('curtir e comentar no post', () => {
     await user.click(screen.getByRole('button', { name: 'Curtir' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Curtir' })).toHaveAttribute('aria-pressed', 'false'));
     expect(screen.getByText('5')).toBeInTheDocument();
+  });
+});
+
+describe('denunciar', () => {
+  async function openReport(user: ReturnType<typeof userEvent.setup>) {
+    render(<PostCard post={post()} viewerId="v" uploadMode="local" />);
+    await user.click(screen.getByRole('button', { name: 'Mais opções' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Denunciar' }));
+    return screen.findByRole('dialog');
+  }
+
+  it('abre a denúncia com os 4 motivos e o campo de detalhes opcional', async () => {
+    const user = userEvent.setup();
+    const dialog = await openReport(user);
+    expect(within(dialog).getByText('Denunciar post')).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('radio').map((radio) => radio.parentElement?.textContent)).toEqual(['Conteúdo inadequado', 'Spam', 'Spoiler sem aviso', 'Outro motivo']);
+    expect(within(dialog).getByLabelText('Detalhes (opcional)')).toBeInTheDocument();
+    expect(reportActions.reportAction).not.toHaveBeenCalled();
+  });
+
+  it('enviar sem motivo mostra o erro e não fecha', async () => {
+    const user = userEvent.setup();
+    reportActions.reportAction.mockResolvedValue({ ok: false, error: 'invalid', errors: { reason: 'invalid-reason' } });
+    const dialog = await openReport(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar denúncia' }));
+    expect(await within(dialog).findByText('Escolha um motivo.')).toBeInTheDocument();
+  });
+
+  it('envia motivo e detalhes e confirma com o aviso "Denúncia enviada"', async () => {
+    const user = userEvent.setup();
+    reportActions.reportAction.mockResolvedValue({ ok: true, alreadyReported: false });
+    const dialog = await openReport(user);
+    await user.click(within(dialog).getByRole('radio', { name: 'Spam' }));
+    await user.type(within(dialog).getByLabelText('Detalhes (opcional)'), 'Vende coisa');
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar denúncia' }));
+    await waitFor(() => expect(reportActions.reportAction).toHaveBeenCalledWith('post', 'p1', 'spam', 'Vende coisa'));
+    expect(await screen.findByText('Denúncia enviada. Obrigado, vamos analisar.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('se já denunciou, avisa em vez de duplicar', async () => {
+    const user = userEvent.setup();
+    reportActions.reportAction.mockResolvedValue({ ok: true, alreadyReported: true });
+    const dialog = await openReport(user);
+    await user.click(within(dialog).getByRole('radio', { name: 'Outro motivo' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar denúncia' }));
+    expect(await screen.findByText('Você já denunciou este post.')).toBeInTheDocument();
+  });
+
+  it('falha no servidor mostra a mensagem e deixa tentar de novo', async () => {
+    const user = userEvent.setup();
+    reportActions.reportAction.mockResolvedValue({ ok: false, error: 'own-content' });
+    const dialog = await openReport(user);
+    await user.click(within(dialog).getByRole('radio', { name: 'Spam' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar denúncia' }));
+    expect(await within(dialog).findByText('Não foi possível enviar a denúncia. Tente de novo.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Enviar denúncia' })).toBeEnabled();
+  });
+
+  it('Cancelar fecha sem enviar', async () => {
+    const user = userEvent.setup();
+    const dialog = await openReport(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(reportActions.reportAction).not.toHaveBeenCalled();
   });
 });

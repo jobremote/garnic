@@ -1,8 +1,9 @@
-import { Avatar, Banner, Button, Cover, Stat } from 'nogasds';
+import { Avatar, Banner, Cover, Stat } from 'nogasds';
 import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
 import { FeedList } from '@/app/feed/_components/FeedList';
 import { FollowButton } from '@/app/feed/_components/FollowButton';
+import { ReportUserButton } from '@/app/feed/_components/ReportUserButton';
 import type { CurrentUser } from '@/lib/auth/current-user';
 import type { FollowCounters } from '@/lib/feed/follows';
 import type { PostView } from '@/lib/feed/view';
@@ -34,8 +35,7 @@ function toShelfData(shelf: ShelfColumns): ShelfData {
 }
 
 /**
- * Perfil público (Figma: "Perfil do usuário"). Game Shelf, posts e Seguir funcionam; Denunciar ainda não (próxima
- * entrega do Feed).
+ * Perfil público (Figma: "Perfil do usuário"). Game Shelf, posts, Seguir e Denunciar (entrega 3) funcionam.
  */
 export function ProfileView({
   viewer,
@@ -94,9 +94,7 @@ export function ProfileView({
                   />
                 ) : (
                   <>
-                    <Button variant="ghost" disabled>
-                      {t.report}
-                    </Button>
+                    <ReportUserButton userId={profile.id} />
                     <FollowButton userId={profile.id} name={profile.name} initialFollowing={following} size="md" />
                   </>
                 )}

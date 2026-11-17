@@ -1,4 +1,5 @@
 import { IMAGE_MAX_BYTES } from '@/lib/profile/images';
+import { REPORT_DETAILS_MAX } from '@/lib/shelf/screenshot';
 import { COMMENT_MAX, type CommentErrorCode } from './comments';
 import { POST_GAMES_MAX, POST_MAX, type PostErrorCode } from './posts';
 
@@ -118,6 +119,27 @@ export const feedMessages = {
     'too-long': `O comentário passou de ${COMMENT_MAX} caracteres. Reduza para publicar.`,
   } satisfies Record<CommentErrorCode, string>,
   commentNotFound: 'Não encontramos esse comentário. Ele pode ter sido excluído.', // novo
+
+  // Denúncias (entrega 3)
+  report: 'Denunciar', // novo
+  reportTitle: { post: 'Denunciar post', comment: 'Denunciar comentário', user: 'Denunciar usuário' }, // novo
+  reportQuestion: {
+    post: 'Por que você quer denunciar este post? A denúncia é anônima e será analisada.',
+    comment: 'Por que você quer denunciar este comentário? A denúncia é anônima e será analisada.',
+    user: 'Por que você quer denunciar este perfil, incluindo foto e capa? A denúncia é anônima e será analisada.',
+  }, // novo
+  reportReasonLegend: 'Motivo', // novo
+  reportReasons: { inappropriate: 'Conteúdo inadequado', spam: 'Spam', spoiler: 'Spoiler sem aviso', other: 'Outro motivo' }, // novo
+  reportDetails: 'Detalhes (opcional)', // novo
+  reportDetailsPlaceholder: 'Conte o que aconteceu', // novo
+  reportSend: 'Enviar denúncia', // novo
+  reportSent: 'Denúncia enviada. Obrigado, vamos analisar.', // novo
+  reportAlready: { post: 'Você já denunciou este post.', comment: 'Você já denunciou este comentário.', user: 'Você já denunciou este usuário.' }, // novo
+  reportFailed: 'Não foi possível enviar a denúncia. Tente de novo.', // novo
+  reportPickReason: 'Escolha um motivo.', // novo
+  reportDetailsTooLong: `Os detalhes podem ter até ${REPORT_DETAILS_MAX} caracteres.`, // novo
+  reportNotFound: 'Não encontramos o que você quer denunciar. Pode ter sido excluído.', // novo
+  closeToast: 'Fechar aviso', // novo
 
   postErrors: {
     empty: 'Escreva algo ou adicione uma imagem para publicar.',
