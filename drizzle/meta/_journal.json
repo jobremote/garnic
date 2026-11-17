@@ -99,6 +99,13 @@
       "when": 1794925364652,
       "tag": "0013_feed_denuncias",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794941227043,
+      "tag": "0014_feed_atividades",
+      "breakpoints": true
     }
   ]
 }

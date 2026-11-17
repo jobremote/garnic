@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { games, shelfEntries, type Game } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
+import { recordStatusActivity, type ActivityOffer } from './activity';
 import { SORT_STEP, topSortOrder } from './order';
 import { isShelfStatus, SHELF_STATUSES, type ShelfStatus } from './status';
 import { tagsByEntry, type TagView } from './tags';
@@ -43,7 +44,7 @@ export async function saveGame(db: Db, game: IgdbGame): Promise<Game> {
 }
 
 export type AddToShelfResult =
-  | { ok: true; entryId: string; status: ShelfStatus; alreadyOnShelf: boolean; gameName: string }
+  | { ok: true; entryId: string; status: ShelfStatus; alreadyOnShelf: boolean; gameName: string; /** Atividade gerada (só quando o jogo entrou agora). */ activity?: ActivityOffer }
   | { ok: false; error: 'invalid-status' };
 
 /**
@@ -60,7 +61,10 @@ export async function addToShelf(db: Db, userId: string, game: IgdbGame, status:
     .values({ userId, gameId: saved.id, status, statusChangedAt: now, createdAt: now, sortOrder: topSortOrder(userId, status) })
     .onConflictDoNothing({ target: [shelfEntries.userId, shelfEntries.gameId] })
     .returning({ id: shelfEntries.id });
-  if (created) return { ok: true, entryId: created.id, status, alreadyOnShelf: false, gameName: saved.name };
+  if (created) {
+    const activity = (await recordStatusActivity(db, userId, created.id, now)) ?? undefined;
+    return { ok: true, entryId: created.id, status, alreadyOnShelf: false, gameName: saved.name, activity };
+  }
 
   const [existing] = await db
     .select({ id: shelfEntries.id, status: shelfEntries.status })
@@ -98,7 +102,7 @@ export async function addManyToShelf(db: Db, userId: string, gamesToAdd: IgdbGam
 }
 
 export type MoveResult =
-  | { ok: true; status: ShelfStatus; changed: boolean; gameName: string }
+  | { ok: true; status: ShelfStatus; changed: boolean; gameName: string; activity?: ActivityOffer }
   | { ok: false; error: 'invalid-status' | 'not-found' };
 
 /**
@@ -119,11 +123,12 @@ export async function moveEntry(db: Db, userId: string, entryId: string, status:
     .update(shelfEntries)
     .set({ status, statusChangedAt: now, sortOrder: topSortOrder(userId, status) })
     .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
-  return { ok: true, status, changed: true, gameName: current.name };
+  const activity = (await recordStatusActivity(db, userId, entryId, now)) ?? undefined;
+  return { ok: true, status, changed: true, gameName: current.name, activity };
 }
 
 export type PlaceResult =
-  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean }
+  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean; activity?: ActivityOffer }
   | { ok: false; error: 'invalid-status' | 'not-found' | 'invalid-order' };
 
 /** Quantos cards cabem numa lista de ordem (limite de segurança). */
@@ -178,7 +183,9 @@ export async function placeEntry(
     FROM (VALUES ${values}) AS v(id, pos)
     WHERE e.id = v.id AND e.user_id = ${userId}::uuid
   `);
-  return { ok: true, gameName: moving.name, status, changed: moving.status !== status };
+  const changed = moving.status !== status;
+  const activity = changed ? ((await recordStatusActivity(db, userId, entryId, now)) ?? undefined) : undefined;
+  return { ok: true, gameName: moving.name, status, changed, activity };
 }
 
 /** A estante de uma pessoa em colunas. Dentro de cada coluna vale a ordem escolhida pela pessoa (`sort_order`). */

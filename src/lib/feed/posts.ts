@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray, isNotNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
-import { comments, follows, games, postGames, postLikes, posts, shelfEntries, users } from '@/lib/db/schema';
+import { comments, follows, games, postGames, postLikes, posts, shelfActivities, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
+import { isActivityKind, type ActivityKind } from '@/lib/shelf/activity';
 import { saveGame } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
 import { withoutMentions } from './mentions';
@@ -155,6 +156,20 @@ export interface FeedPost {
   liked: boolean;
   /** Comentários e respostas do post, sem contar os excluídos (os ocultos contam; provisório, ver pontos em aberto). */
   commentCount: number;
+  /** Atividade do Game Shelf que o post compartilha (nulo: post comum). Os valores são os do momento da atividade. */
+  activity: PostActivity | null;
+}
+
+/** Atividade compartilhada, como o post de atividade precisa (`shelfActivities` + o jogo). */
+export interface PostActivity {
+  kind: ActivityKind;
+  status: ShelfStatus;
+  platform: string | null;
+  rating: number | null;
+  playMinutes: number | null;
+  review: string | null;
+  screenshotRef: string | null;
+  game: { igdbId: number; name: string; coverImageId: string | null; releasedAt: Date | null };
 }
 
 /** De onde vêm os posts. */
@@ -238,6 +253,7 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       spoiler: posts.spoiler,
       createdAt: posts.createdAt,
       editedAt: posts.editedAt,
+      activityId: posts.activityId,
       authorId: users.id,
       authorName: users.name,
       authorUsername: users.username,
@@ -278,7 +294,31 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       gamesByPost.set(row.postId, list);
     }
   }
+  // Atividades da página (posts de atividade), de uma vez só.
+  const activityIds = page.flatMap((row) => (row.activityId ? [row.activityId] : []));
+  const activityById = new Map<string, PostActivity>();
+  if (activityIds.length > 0) {
+    const found = await db
+      .select({ activity: shelfActivities, game: games })
+      .from(shelfActivities)
+      .innerJoin(games, eq(games.id, shelfActivities.gameId))
+      .where(inArray(shelfActivities.id, activityIds));
+    for (const { activity, game } of found) {
+      if (!isActivityKind(activity.kind) || !isShelfStatus(activity.status)) continue;
+      activityById.set(activity.id, {
+        kind: activity.kind,
+        status: activity.status,
+        platform: activity.platform,
+        rating: activity.rating,
+        playMinutes: activity.playMinutes,
+        review: activity.review,
+        screenshotRef: activity.screenshotRef,
+        game: { igdbId: game.igdbId, name: game.name, coverImageId: game.coverImageId, releasedAt: game.releasedAt },
+      });
+    }
+  }
   const list: FeedPost[] = page.map((row) => ({
+    activity: row.activityId ? (activityById.get(row.activityId) ?? null) : null,
     id: row.id,
     body: row.body,
     imageRef: row.imageRef,

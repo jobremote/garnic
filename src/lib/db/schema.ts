@@ -294,6 +294,42 @@ export const follows = pgTable(
 );
 
 /**
+ * Atividade do Game Shelf (entrega 3, parte 2; `01_produto/regras-de-negocio/atividade-compartilhada.md`). Cada mudança que
+ * a regra lista (adicionou, começou, zerou, parou, nota, review, screenshot) vira uma linha, **com os valores daquele
+ * momento** (o post de atividade conta o que aconteceu, não o estado de hoje). Nada vira post sem o clique em
+ * Compartilhar. `kind`: `added`, `started`, `finished`, `stopped`, `rated`, `review` ou `screenshot` (ver
+ * `src/lib/shelf/activity.ts`). Sai com a conta; se a entrada sai da Game Shelf, `entryId` fica nulo e a linha só
+ * continua existindo se já virou post.
+ */
+export const shelfActivities = pgTable(
+  'shelf_activities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    entryId: uuid('entry_id').references(() => shelfEntries.id, { onDelete: 'set null' }),
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => games.id),
+    kind: text('kind').notNull(),
+    /** Coluna do jogo no momento da atividade (o selo do card). */
+    status: text('status').notNull(),
+    platform: text('platform'),
+    rating: smallint('rating'),
+    playMinutes: integer('play_minutes'),
+    /** Texto da review no momento (o post mostra um trecho). Só em `review`. */
+    review: text('review'),
+    /** Referência da screenshot. Só em `screenshot`. */
+    screenshotRef: text('screenshot_ref'),
+    /** Review ou screenshot com spoiler geram post com spoiler ativo. */
+    spoiler: boolean('spoiler').notNull().default(false),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('shelf_activities_entry_idx').on(table.entryId, table.createdAt), index('shelf_activities_user_idx').on(table.userId, table.createdAt)],
+);
+
+/**
  * Post do Feed (`01_produto/regras-de-negocio/feed.md`): texto até 1.500 caracteres, 1 imagem e até 10 jogos marcados
  * (qualquer jogo do IGDB, não precisa estar no Game Shelf; ver `postGames`). Texto ou imagem é obrigatório (só marcar o
  * jogo não basta). `spoiler` vale para o post inteiro (texto e imagem). `editedAt` só é preenchido depois de uma edição.
@@ -313,8 +349,17 @@ export const posts = pgTable(
     spoiler: boolean('spoiler').notNull().default(false),
     createdAt: instant('created_at').notNull().defaultNow(),
     editedAt: instant('edited_at'),
+    /**
+     * Atividade que este post compartilha (`shelfActivities`). Nulo: post comum. No máximo um post por atividade
+     * (índice único): apagar o post libera o botão de Compartilhar de novo.
+     */
+    activityId: uuid('activity_id').references(() => shelfActivities.id),
   },
-  (table) => [index('posts_created_idx').on(table.createdAt, table.id), index('posts_user_created_idx').on(table.userId, table.createdAt)],
+  (table) => [
+    index('posts_created_idx').on(table.createdAt, table.id),
+    index('posts_user_created_idx').on(table.userId, table.createdAt),
+    uniqueIndex('posts_activity_key').on(table.activityId),
+  ],
 );
 
 /**

@@ -14,6 +14,7 @@ import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
 import { getPublicEntry, reportScreenshot, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
 import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
+import type { ActivityOffer } from '@/lib/shelf/activity';
 import { addManyToShelf, addToShelf, moveEntry, placeEntry, QUICK_ADD_MAX, statusByIgdbId } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
 
@@ -76,7 +77,7 @@ export async function searchGamesAction(query: string): Promise<SearchGamesResul
 }
 
 export type AddGameResult =
-  | { ok: true; entryId: string; gameName: string; status: ShelfStatus; alreadyOnShelf: boolean }
+  | { ok: true; entryId: string; gameName: string; status: ShelfStatus; alreadyOnShelf: boolean; /** Atividade gerada: a tela oferece compartilhar. */ activity?: ActivityOffer }
   | { ok: false; error: 'not-configured' | 'unavailable' | 'not-found' | 'invalid' };
 
 /** Põe o jogo na Game Shelf de quem está logado. Se já estiver lá, não duplica e avisa em que coluna está. */
@@ -94,7 +95,7 @@ export async function addGameAction(igdbId: number, status: string): Promise<Add
   const result = await addToShelf(await getDb(), user.id, game, status);
   if (!result.ok) return { ok: false, error: 'invalid' };
   revalidatePath('/perfil/[username]', 'page');
-  return { ok: true, entryId: result.entryId, gameName: result.gameName, status: result.status, alreadyOnShelf: result.alreadyOnShelf };
+  return { ok: true, entryId: result.entryId, gameName: result.gameName, status: result.status, alreadyOnShelf: result.alreadyOnShelf, activity: result.activity };
 }
 
 export type AddGamesResult =
@@ -125,7 +126,7 @@ export async function addGamesAction(igdbIds: unknown, status: string): Promise<
 }
 
 export type PlaceGameResult =
-  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean }
+  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean; activity?: ActivityOffer }
   | { ok: false; error: 'not-found' | 'invalid' };
 
 /**
@@ -138,11 +139,11 @@ export async function placeGameAction(entryId: string, status: string, orderedId
   const result = await placeEntry(await getDb(), user.id, entryId, status, orderedIds);
   if (!result.ok) return { ok: false, error: result.error === 'not-found' ? 'not-found' : 'invalid' };
   revalidatePath('/perfil/[username]', 'page');
-  return { ok: true, gameName: result.gameName, status: result.status, changed: result.changed };
+  return { ok: true, gameName: result.gameName, status: result.status, changed: result.changed, activity: result.activity };
 }
 
 export type MoveGameResult =
-  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean }
+  | { ok: true; gameName: string; status: ShelfStatus; changed: boolean; activity?: ActivityOffer }
   | { ok: false; error: 'not-found' | 'invalid' };
 
 /** Move um jogo de coluna (menu "Mover para" ou arrastar). Só mexe nas entradas de quem está logado. */
@@ -152,7 +153,7 @@ export async function moveGameAction(entryId: string, status: string): Promise<M
   const result = await moveEntry(await getDb(), user.id, entryId, status);
   if (!result.ok) return { ok: false, error: result.error === 'not-found' ? 'not-found' : 'invalid' };
   revalidatePath('/perfil/[username]', 'page');
-  return { ok: true, gameName: result.gameName, status: result.status, changed: result.changed };
+  return { ok: true, gameName: result.gameName, status: result.status, changed: result.changed, activity: result.activity };
 }
 
 /** A entrada como a tela de edição precisa dela (nada de ids internos do jogo ou de outras pessoas). */
@@ -217,7 +218,7 @@ export async function openEntryAction(entryId: string): Promise<OpenEntryResult>
 }
 
 export type SaveEntryResult =
-  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean }
+  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean; activities: ActivityOffer[] }
   | { ok: false; error: 'not-found' }
   | { ok: false; error: 'invalid'; errors: Partial<Record<EntryField, string>> };
 
@@ -244,7 +245,7 @@ export async function saveEntryAction(entryId: string, input: unknown): Promise<
   }
   await deleteImage(result.replacedScreenshot); // trocou ou removeu: a imagem antiga sai do armazenamento
   revalidatePath('/perfil/[username]', 'page');
-  return { ok: true, gameName: result.gameName, status: result.status, statusChanged: result.statusChanged };
+  return { ok: true, gameName: result.gameName, status: result.status, statusChanged: result.statusChanged, activities: result.activities };
 }
 
 export type RemoveGameResult = { ok: true; gameName: string } | { ok: false };

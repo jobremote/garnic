@@ -170,7 +170,7 @@ describe('Game Shelf: tags na edição da entrada', () => {
 
   it('adiciona e tira tags da entrada e envia a lista ao salvar', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry([SOULS.id]), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Elden Ring', status: 'jogando', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Elden Ring', status: 'jogando', statusChanged: false, activities: [] });
     const user = userEvent.setup();
     render(<GameShelf columns={columns()} own title="Game Shelf" tags={tagList} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
@@ -184,7 +184,7 @@ describe('Game Shelf: tags na edição da entrada', () => {
   it('"+ Nova tag" cria a tag sem sair da edição e já a põe no jogo', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry([]), timeToBeat: null });
     actions.createTagAction.mockResolvedValue({ ok: true, tag: { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', name: 'Rejogar', color: 'rose', gameCount: 0 } });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Elden Ring', status: 'jogando', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Elden Ring', status: 'jogando', statusChanged: false, activities: [] });
     const user = userEvent.setup();
     render(<GameShelf columns={columns()} own title="Game Shelf" tags={tagList} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);

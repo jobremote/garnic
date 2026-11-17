@@ -343,3 +343,47 @@
     scroll-snap-align: none;
   }
 }
+
+/* Atividade recente da entrada (compartilhar atividade) */
+.recentActivity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  padding-top: var(--nds-space-inset-lg);
+  border-top: var(--nds-stroke-default) solid var(--nds-border-subtle);
+}
+.recentTitle {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+.recentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recentRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nds-space-gap-md);
+}
+.recentText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--nds-space-gap-xs);
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-primary);
+}
+.recentShared {
+  flex: none;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-secondary);
+}
