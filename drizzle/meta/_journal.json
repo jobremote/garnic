@@ -85,6 +85,13 @@
       "when": 1794853994817,
       "tag": "0011_feed_post_games",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794920925565,
+      "tag": "0012_feed_curtir_e_comentar",
+      "breakpoints": true
     }
   ]
 }

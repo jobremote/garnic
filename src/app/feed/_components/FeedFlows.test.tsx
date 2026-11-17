@@ -17,6 +17,12 @@ const actions = vi.hoisted(() => ({
 }));
 vi.mock('../actions', () => actions);
 
+const commentActions = vi.hoisted(() => ({ setLikeAction: vi.fn() }));
+vi.mock('../comment-actions', () => commentActions);
+
+const navigation = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => navigation }));
+
 const shelfActions = vi.hoisted(() => ({ searchGamesAction: vi.fn() }));
 vi.mock('@/app/perfil/shelf-actions', () => shelfActions);
 
@@ -32,6 +38,9 @@ const post = (over: Partial<PostView> = {}): PostView => ({
   body: 'Finalmente zerei.',
   spoiler: false,
   games: [],
+  likeCount: 0,
+  liked: false,
+  commentCount: 0,
   own: false,
   ...over,
 });
@@ -359,5 +368,44 @@ describe('lista do feed', () => {
     await user.click(screen.getByRole('button', { name: 'Ver mais' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar mais posts');
     expect(screen.getByRole('button', { name: 'Ver mais' })).toBeEnabled();
+  });
+});
+
+describe('curtir e comentar no post', () => {
+  it('mostra os contadores e leva "Comentar" para a página do post', async () => {
+    const user = userEvent.setup();
+    render(<PostCard post={post({ likeCount: 12, commentCount: 3 })} viewerId="v" uploadMode="local" />);
+    expect(screen.getByRole('button', { name: 'Curtir' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Comentar' }));
+    expect(navigation.push).toHaveBeenCalledWith('/post/p1#comentar');
+  });
+
+  it('o horário do post é um link para a página dele', () => {
+    render(<PostCard post={post()} viewerId="v" uploadMode="local" />);
+    expect(screen.getByRole('link', { name: 'há 2 h' })).toHaveAttribute('href', '/post/p1');
+  });
+
+  it('curtir muda na hora, usa o contador do servidor e descurtir volta', async () => {
+    const user = userEvent.setup();
+    commentActions.setLikeAction.mockResolvedValueOnce({ ok: true, liked: true, count: 6 }).mockResolvedValueOnce({ ok: true, liked: false, count: 5 });
+    render(<PostCard post={post({ likeCount: 5 })} viewerId="v" uploadMode="local" />);
+    await user.click(screen.getByRole('button', { name: 'Curtir' }));
+    await waitFor(() => expect(screen.getByText('6')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Curtir' })).toHaveAttribute('aria-pressed', 'true');
+    expect(commentActions.setLikeAction).toHaveBeenLastCalledWith('post', 'p1', true);
+    await user.click(screen.getByRole('button', { name: 'Curtir' }));
+    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument());
+    expect(commentActions.setLikeAction).toHaveBeenLastCalledWith('post', 'p1', false);
+  });
+
+  it('se o servidor não aceitar a curtida, volta ao que era', async () => {
+    const user = userEvent.setup();
+    commentActions.setLikeAction.mockResolvedValueOnce({ ok: false });
+    render(<PostCard post={post({ likeCount: 5 })} viewerId="v" uploadMode="local" />);
+    await user.click(screen.getByRole('button', { name: 'Curtir' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Curtir' })).toHaveAttribute('aria-pressed', 'false'));
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 });

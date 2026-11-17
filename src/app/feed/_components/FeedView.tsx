@@ -19,7 +19,7 @@ import { FeedTabs, type FeedTab } from './FeedTabs';
 import { FollowButton } from './FollowButton';
 
 /** Muda quando a lista muda (novo post, edição, exclusão): a lista no navegador recomeça com os dados novos do servidor. */
-const listKey = (posts: PostView[]) => posts.map((post) => `${post.id}:${post.edited ? 1 : 0}`).join(',');
+const listKey = (posts: PostView[]) => posts.map((post) => `${post.id}:${post.edited ? 1 : 0}:${post.likeCount}:${post.commentCount}`).join(',');
 
 /**
  * Feed (Figma: "Feed"). Abas Seguindo e Meus jogos em ordem cronológica, sem algoritmo; resumo do perfil à esquerda e
@@ -33,7 +33,7 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
   const scope: FeedScope = tab === 'meus-jogos' ? { kind: 'my-games' } : { kind: 'following' };
 
   const [page, profile, counters, suggestions] = await Promise.all([
-    listPosts(db, filterFor(scope, viewer.id)),
+    listPosts(db, filterFor(scope, viewer.id), { viewerId: viewer.id }),
     getPublicProfile(db, viewer.username),
     shelfCounters(db, viewer.id),
     suggestedUsers(db, viewer.id),
@@ -56,7 +56,7 @@ export async function FeedView({ viewer, tab }: { viewer: CurrentUser; tab: Feed
     );
   } else {
     // Cold start: quem ainda não segue ninguém (ou segue gente que não postou) vê o que a comunidade anda postando.
-    const global = await listPosts(db, { kind: 'all' });
+    const global = await listPosts(db, { kind: 'all' }, { viewerId: viewer.id });
     const globalPosts = global.posts.map((post) => toPostView(post, viewer.id, now));
     content = (
       <>

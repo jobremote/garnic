@@ -30,7 +30,7 @@ async function Profile({ params }: { params: Promise<{ username: string }> }) {
     listTags(db, profile.id),
     viewer.id === profile.id ? false : isFollowing(db, viewer.id, profile.id),
     followCounters(db, profile.id),
-    listPosts(db, { kind: 'user', userId: profile.id }),
+    listPosts(db, { kind: 'user', userId: profile.id }, { viewerId: viewer.id }),
   ]);
   const now = new Date();
   return (

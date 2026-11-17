@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
-import { follows, games, postGames, posts, shelfEntries, users } from '@/lib/db/schema';
+import { comments, follows, games, postGames, postLikes, posts, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
 import { saveGame } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
@@ -149,6 +149,12 @@ export interface FeedPost {
   editedAt: Date | null;
   author: { id: string; name: string; username: string; avatarKey: string | null };
   games: PostGame[];
+  /** Curtidas do post (só o contador é público). */
+  likeCount: number;
+  /** Quem está vendo curtiu. */
+  liked: boolean;
+  /** Comentários e respostas do post, sem contar os excluídos (os ocultos contam; provisório, ver pontos em aberto). */
+  commentCount: number;
 }
 
 /** De onde vêm os posts. */
@@ -156,6 +162,7 @@ export type FeedFilter =
   | { kind: 'following'; viewerId: string }
   | { kind: 'my-games'; viewerId: string }
   | { kind: 'user'; userId: string }
+  | { kind: 'post'; postId: string }
   | { kind: 'all' };
 
 /** Posição na lista: o post mais antigo da página anterior (data e id desempatam posts do mesmo instante). */
@@ -207,13 +214,15 @@ function condition(filter: FeedFilter): SQL | undefined {
       )}))`;
     case 'user':
       return eq(posts.userId, filter.userId);
+    case 'post':
+      return eq(posts.id, filter.postId);
     case 'all':
       return undefined;
   }
 }
 
 /** Lista posts do mais recente para o mais antigo (sem algoritmo), em páginas. */
-export async function listPosts(db: Db, filter: FeedFilter, options: { before?: Cursor | null; limit?: number } = {}): Promise<FeedPage> {
+export async function listPosts(db: Db, filter: FeedFilter, options: { before?: Cursor | null; limit?: number; /** Quem está vendo (para saber se curtiu). */ viewerId?: string } = {}): Promise<FeedPage> {
   const limit = options.limit ?? PAGE_SIZE;
   const before = options.before;
   const where = and(
@@ -233,6 +242,11 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       authorName: users.name,
       authorUsername: users.username,
       authorAvatarKey: users.avatarKey,
+      likeCount: sql<number>`(select count(*)::int from ${postLikes} where ${postLikes.postId} = ${posts.id})`,
+      liked: options.viewerId
+        ? sql<boolean>`exists (select 1 from ${postLikes} where ${postLikes.postId} = ${posts.id} and ${postLikes.userId} = ${options.viewerId})`
+        : sql<boolean>`false`,
+      commentCount: sql<number>`(select count(*)::int from ${comments} where ${comments.postId} = ${posts.id} and ${comments.deletedAt} is null)`,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.userId))
@@ -273,6 +287,9 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
     editedAt: row.editedAt ? new Date(row.editedAt) : null,
     author: { id: row.authorId, name: row.authorName, username: row.authorUsername, avatarKey: row.authorAvatarKey },
     games: gamesByPost.get(row.id) ?? [],
+    likeCount: row.likeCount,
+    liked: row.liked,
+    commentCount: row.commentCount,
   }));
   const last = list[list.length - 1];
   return { posts: list, next: rows.length > limit && last ? encodeCursor({ at: last.createdAt, id: last.id }) : null };

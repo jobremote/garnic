@@ -235,3 +235,47 @@
 .composer :global(.nds-post-composer__actions) {
   flex-wrap: wrap;
 }
+
+/* Página do post: coluna única, o post e os comentários embaixo. */
+.postLayout {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+  width: 100%;
+  max-width: calc(640px + 2 * var(--content-gutter));
+  margin: 0 auto;
+  padding: var(--nds-space-inset-2xl) var(--content-gutter) var(--nds-space-inset-4xl);
+  box-sizing: border-box;
+}
+.backLink {
+  align-self: flex-start;
+}
+
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+.commentList {
+  display: flex;
+  flex-direction: column;
+}
+.commentForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+}
+.commentFormActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--nds-space-gap-sm);
+}
+/* Resposta e campo de resposta: mesmo recuo (avatar de 32 px + vão). */
+.replyForm {
+  padding-left: calc(32px + var(--nds-space-gap-md));
+}
+.commentBody {
+  margin: 0;
+  white-space: pre-wrap;
+}

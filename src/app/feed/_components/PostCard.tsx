@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Badge, Button, GroupedTags, MediaTag, Menu, MenuOption, Modal, Icon, Post, SpoilerGuard } from 'nogasds';
+import { Badge, Button, GroupedTags, MediaTag, Menu, MenuOption, Modal, Icon, Post, PostAction, SpoilerGuard } from 'nogasds';
 import { groupByStatus } from '@/lib/feed/groups';
 import { feedMessages as t } from '@/lib/feed/messages';
 import type { PostView } from '@/lib/feed/view';
@@ -12,9 +13,12 @@ import type { UploadMode } from '@/app/perfil/_components/upload-image';
 import { deletePostAction } from '../actions';
 import styles from '../feed.module.css';
 import { EditPostModal } from './EditPostModal';
+import { useLike } from './use-like';
 
 /** Post do feed (Figma: Post). Com spoiler, o texto e a imagem ficam atrás de um só aviso. O menu é só de quem postou. */
-export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewerId: string; uploadMode: UploadMode }) {
+export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: PostView; viewerId: string; uploadMode: UploadMode; /** Depois de excluir (a página do post volta ao feed). */ onDeleted?: () => void }) {
+  const router = useRouter();
+  const like = useLike('post', post.id, { liked: post.liked, count: post.likeCount });
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pending, setPending] = useState(false);
@@ -25,7 +29,11 @@ export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewe
     setError(null);
     const result = await deletePostAction(post.id);
     setPending(false);
-    if (result.ok) return setDeleting(false);
+    if (result.ok) {
+      setDeleting(false);
+      onDeleted?.();
+      return;
+    }
     setError(result.error === 'not-found' ? t.notFound : t.generic);
   }
 
@@ -60,7 +68,17 @@ export function PostCard({ post, viewerId, uploadMode }: { post: PostView; viewe
             <Link href={profile} className={styles.metaLink}>
               @{post.username}
             </Link>
-            {` · ${post.time}${post.edited ? ` · ${t.edited}` : ''}`}
+            {' · '}
+            <Link href={`/post/${post.id}`} className={styles.metaLink}>
+              {post.time}
+            </Link>
+            {post.edited ? ` · ${t.edited}` : ''}
+          </>
+        }
+        actions={
+          <>
+            <PostAction icon="favorite" pressedIcon="favorite-fill" label={t.like} count={like.count} pressed={like.liked} onClick={() => void like.toggle()} />
+            <PostAction icon="chat" label={t.comment} count={post.commentCount} onClick={() => router.push(`/post/${post.id}#comentar`)} />
           </>
         }
         menu={
