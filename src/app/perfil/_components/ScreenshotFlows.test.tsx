@@ -89,7 +89,7 @@ describe('screenshot na edição da entrada', () => {
 
   it('envia a imagem ao escolher e manda a referência ao salvar, com o spoiler', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false, activities: [] });
     upload.uploadImage.mockResolvedValue('https://abc.public.blob.vercel-storage.com/screenshots/u1/screenshot-Ab12.png');
     const user = userEvent.setup();
     render(shelf());
@@ -123,7 +123,7 @@ describe('screenshot na edição da entrada', () => {
 
   it('remover a screenshot salva só vale ao Salvar (envia screenshot: null)', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ screenshotUrl: 'https://abc.public.blob.vercel-storage.com/screenshots/u1/old.png' }), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false, activities: [] });
     const user = userEvent.setup();
     render(shelf());
     const dialog = await openEdit(user);

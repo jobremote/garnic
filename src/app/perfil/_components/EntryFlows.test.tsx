@@ -71,7 +71,7 @@ describe('Game Shelf: pop-up do Zerado', () => {
   it('salva nota e tempo pelo pop-up; sem estimativa do IGDB, nada aparece', async () => {
     actions.moveGameAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', changed: true });
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry({ status: 'zerado' }), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: false, activities: [] });
     const user = userEvent.setup();
     render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await moveToZeroed(user);
@@ -96,7 +96,7 @@ describe('Game Shelf: editar a entrada', () => {
 
   it('tem 3 abas, abre na Essencial e salva todos os campos juntos', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'jogando', statusChanged: false, activities: [] });
     const user = userEvent.setup();
     render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);
@@ -159,7 +159,7 @@ describe('Game Shelf: editar a entrada', () => {
 
   it('mudar o status para Zerado pela edição abre o pop-up do Zerado depois de salvar', async () => {
     actions.openEntryAction.mockResolvedValue({ ok: true, entry: entry(), timeToBeat: null });
-    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: true });
+    actions.saveEntryAction.mockResolvedValue({ ok: true, gameName: 'Celeste', status: 'zerado', statusChanged: true, activities: [] });
     const user = userEvent.setup();
     render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" />);
     const dialog = await openEdit(user);

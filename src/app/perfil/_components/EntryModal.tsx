@@ -24,6 +24,8 @@ import type { TimeToBeat } from '@/lib/igdb/igdb';
 import { discardScreenshotAction, openEntryAction, saveEntryAction, type EntryView, type TagData } from '../shelf-actions';
 import styles from '../shelf.module.css';
 import { EntryTagsField } from './EntryTagsField';
+import type { ActivityOffer } from '@/lib/shelf/activity';
+import { RecentActivity } from './RecentActivity';
 import { uploadImage, type UploadMode } from './upload-image';
 
 type TabValue = 'essential' | 'playthrough' | 'review';
@@ -79,9 +81,11 @@ export interface EntryModalProps {
   entryId: string;
   onClose: () => void;
   /** Depois de salvar: o pai mostra o aviso e fecha. */
-  onSaved: (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => void;
+  onSaved: (result: { gameName: string; statusChanged: boolean; status: ShelfStatus; activities: ActivityOffer[] }) => void;
   /** Pedido de remover (só no modo `edit`). */
   onRemove?: (entryId: string, gameName: string) => void;
+  /** Compartilhar uma atividade da lista "Atividade recente" (só no modo `edit`). */
+  onShare?: (activityId: string) => void;
   /** Todas as tags da pessoa (para escolher as do jogo). */
   tags: TagData[];
   /** Uma tag criada no "+ Nova tag": o pai a inclui na lista. */
@@ -92,7 +96,7 @@ export interface EntryModalProps {
 }
 
 /** Editar a entrada em 3 abas e o pop-up do Zerado (Figma: Editar entrada e Pop-up Zerado). */
-export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, onTagCreated, uploadMode, userId }: EntryModalProps) {
+export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, onShare, tags, onTagCreated, uploadMode, userId }: EntryModalProps) {
   const [loaded, setLoaded] = useState<{ entry: EntryView; timeToBeat: TimeToBeat | null } | 'failed' | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -124,6 +128,7 @@ export function EntryModal({ mode, entryId, onClose, onSaved, onRemove, tags, on
       onClose={onClose}
       onSaved={onSaved}
       onRemove={onRemove}
+      onShare={onShare}
       tags={tags}
       onTagCreated={onTagCreated}
       uploadMode={uploadMode}
@@ -142,7 +147,7 @@ interface EntryFormProps extends Omit<EntryModalProps, 'entryId'> {
   title: string;
 }
 
-function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose: closeModal, onSaved, onRemove, tags, onTagCreated, uploadMode, userId }: EntryFormProps) {
+function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, onClose: closeModal, onSaved, onRemove, onShare, tags, onTagCreated, uploadMode, userId }: EntryFormProps) {
   const [uploading, setUploading] = useState(false);
   const [shotError, setShotError] = useState<string | null>(null);
   // Fechar sem salvar: a imagem enviada e ainda não salva é apagada do armazenamento.
@@ -389,6 +394,17 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
               <Checkbox label={sm.spoilerCheckbox} checked={draft.shotSpoiler} disabled={!draft.shotUrl} onChange={(event) => setDraft({ shotSpoiler: event.target.checked })} />
               <p className={styles.hint}>{sm.spoilerHint}</p>
             </Panel>
+
+            {onShare ? (
+              <RecentActivity
+                entryId={entry.entryId}
+                onShare={(activityId) => {
+                  // Sai da edição para ver a prévia: a imagem enviada e ainda não salva é descartada, como ao fechar.
+                  if (typeof draft?.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
+                  onShare(activityId);
+                }}
+              />
+            ) : null}
           </>
         )}
       </div>

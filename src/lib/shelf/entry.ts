@@ -5,6 +5,7 @@ import { games, shelfEntries } from '@/lib/db/schema';
 import { isShelfStatus, type ShelfStatus } from './status';
 import { topSortOrder } from './order';
 import { checkTagIds, replaceEntryTags, tagsByEntry } from './tags';
+import { completeRecentFinished, dropEntryActivities, kindForStatus, recordActivity, releaseActivities, type ActivityOffer } from './activity';
 
 /** Edição da entrada da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
 
@@ -98,7 +99,7 @@ export type EntryErrorCode =
   | 'invalid-screenshot';
 
 export type UpdateEntryResult =
-  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean; replacedScreenshot: string | null }
+  | { ok: true; gameName: string; status: ShelfStatus; statusChanged: boolean; replacedScreenshot: string | null; /** Atividades geradas por este salvamento (a tela oferece compartilhar). */ activities: ActivityOffer[] }
   | { ok: false; error: 'not-found' }
   | { ok: false; error: 'invalid'; errors: Partial<Record<EntryField, EntryErrorCode>> };
 
@@ -214,7 +215,40 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
     await db.update(shelfEntries).set(set).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
   }
   if (tagIds !== null) await replaceEntryTags(db, entryId, tagIds);
-  return { ok: true, gameName: current.game.name, status, statusChanged, replacedScreenshot };
+
+  // A imagem antiga só sai do armazenamento se nenhum post de atividade ainda a mostra.
+  if (replacedScreenshot && !(await releaseActivities(db, entryId, replacedScreenshot))) replacedScreenshot = null;
+
+  // Atividades que a regra lista (atividade-compartilhada.md). Cada uma guarda os valores deste momento.
+  const final = {
+    rating: 'rating' in set ? (set.rating as number | null) : current.rating,
+    platform: 'platform' in set ? (set.platform as string | null) : current.platform,
+    playMinutes: 'playMinutes' in set ? (set.playMinutes as number | null) : current.playMinutes,
+    review: 'review' in set ? (set.review as string | null) : current.review,
+    reviewSpoiler: 'reviewSpoiler' in set ? set.reviewSpoiler === true : current.reviewSpoiler,
+    screenshotRef: 'screenshotRef' in set ? (set.screenshotRef as string | null) : current.screenshotRef,
+    screenshotSpoiler: 'screenshotSpoiler' in set ? set.screenshotSpoiler === true : current.screenshotSpoiler,
+  };
+  const base = { userId, entryId, gameId: current.game.id, status, platform: final.platform };
+  const activities: ActivityOffer[] = [];
+  if (statusChanged) {
+    activities.push(await recordActivity(db, { ...base, kind: kindForStatus(status), rating: final.rating, playMinutes: final.playMinutes }, now));
+  } else {
+    // Nota junto com mudança de coluna já aparece no post da coluna (ex.: "Zerou ... Nota 5 de 5"). Nota ou tempo logo
+    // depois de zerar (pop-up do Zerado) completam o "Zerou" recente em vez de virar outra atividade.
+    const ratingChanged = final.rating !== null && final.rating !== current.rating;
+    const timeChanged = final.playMinutes !== null && final.playMinutes !== current.playMinutes;
+    const completed = status === 'zerado' && (ratingChanged || timeChanged) ? await completeRecentFinished(db, entryId, final, now) : null;
+    if (completed) activities.push(completed);
+    else if (ratingChanged) activities.push(await recordActivity(db, { ...base, kind: 'rated', rating: final.rating }, now));
+  }
+  if (final.review && final.review !== current.review) {
+    activities.push(await recordActivity(db, { ...base, kind: 'review', rating: final.rating, review: final.review, spoiler: final.reviewSpoiler }, now));
+  }
+  if (final.screenshotRef && final.screenshotRef !== current.screenshotRef) {
+    activities.push(await recordActivity(db, { ...base, kind: 'screenshot', screenshotRef: final.screenshotRef, spoiler: final.screenshotSpoiler }, now));
+  }
+  return { ok: true, gameName: current.game.name, status, statusChanged, replacedScreenshot, activities };
 }
 
 export type RemoveEntryResult = { ok: true; gameName: string; screenshotRef: string | null } | { ok: false; error: 'not-found' };
@@ -231,6 +265,9 @@ export async function removeEntry(db: Db, userId: string, entryId: string): Prom
     .where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)))
     .limit(1);
   if (!row) return { ok: false, error: 'not-found' };
+  await dropEntryActivities(db, entryId);
+  // A imagem só sai do armazenamento se nenhum post de atividade ainda a mostra.
+  const releasable = row.screenshotRef ? await releaseActivities(db, entryId, row.screenshotRef) : true;
   await db.delete(shelfEntries).where(and(eq(shelfEntries.id, entryId), eq(shelfEntries.userId, userId)));
-  return { ok: true, gameName: row.name, screenshotRef: row.screenshotRef };
+  return { ok: true, gameName: row.name, screenshotRef: releasable ? row.screenshotRef : null };
 }

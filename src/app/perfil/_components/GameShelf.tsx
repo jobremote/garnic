@@ -1,7 +1,7 @@
 'use client';
 
 import { startTransition, useEffect, useOptimistic, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from 'react';
-import { BoardColumn, Button, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
+import { BoardColumn, Button, ButtonLink, Icon, IconButton, ItemCard, Menu, MenuOption, Select, Toast, type TagColor, type ToastProps } from 'nogasds';
 import { screenshotMessages as sm, shelfMessages as t, tagMessages as tm } from '@/lib/shelf/messages';
 import { SHELF_STATUSES, STATUS_LABEL, type ShelfStatus } from '@/lib/shelf/status';
 import { addGameAction, addGamesAction, moveGameAction, placeGameAction, removeEntryAction, type GameResult, type TagData } from '../shelf-actions';
@@ -9,6 +9,9 @@ import styles from '../shelf.module.css';
 import { AddGameModal } from './AddGameModal';
 import { EntryModal, RemoveEntryModal } from './EntryModal';
 import { EntryViewModal } from './EntryViewModal';
+import { ShareActivityModal, type ShareAuthor } from './ShareActivityModal';
+import { feedMessages as fm } from '@/lib/feed/messages';
+import type { ActivityOffer } from '@/lib/shelf/activity';
 import { attachTouchDrag, dropIndexAt } from './touch-drag';
 import type { UploadMode } from './upload-image';
 import { ManageTagsModal } from './ManageTagsModal';
@@ -30,6 +33,10 @@ interface Notice {
   variant: NonNullable<ToastProps['variant']>;
   title: string;
   text?: string;
+  /** Atividade que a pessoa pode compartilhar agora (botão "Compartilhar" no aviso). */
+  share?: ActivityOffer;
+  /** Depois de compartilhar: leva ao post. */
+  postId?: string;
 }
 
 /** Janela aberta sobre o kanban: no máximo uma por vez. */
@@ -41,6 +48,8 @@ type Dialog =
   | null;
 
 const NOTICE_MS = 6000;
+/** Aviso com botão (Compartilhar, Ver post) fica mais tempo na tela. */
+const SHARE_NOTICE_MS = 12000;
 
 /** Altura máxima de cada coluna: cerca de 5 cards e meio (Figma: Kanban com muitos jogos). Passando disso, a lista rola dentro da coluna. */
 const COLUMN_MAX_HEIGHT = 640;
@@ -69,6 +78,7 @@ export function GameShelf({
   tags: tagsProp,
   uploadMode,
   userId,
+  author,
 }: {
   columns: ShelfData;
   own: boolean;
@@ -77,7 +87,13 @@ export function GameShelf({
   /** Onde as imagens são guardadas neste ambiente e quem é a dona da Game Shelf (a pasta das screenshots). */
   uploadMode: UploadMode;
   userId: string;
+  /** Quem é a dona (a prévia do post de atividade mostra o nome e o avatar). */
+  author?: ShareAuthor;
 }) {
+  /** Atividade que a pessoa escolheu compartilhar (abre a prévia). */
+  const [sharing, setSharing] = useState<string | null>(null);
+  /** Oferta guardada enquanto o pop-up do Zerado está aberto: aparece quando ele fecha, já com nota e tempo. */
+  const [pendingOffer, setPendingOffer] = useState<ActivityOffer | null>(null);
   // Lista de tags: vem do servidor e muda na hora quando a pessoa cria, edita ou exclui (o servidor reenvia depois).
   const [seenTags, setSeenTags] = useState(tagsProp);
   const [tagList, setTagList] = useState(tagsProp);
@@ -126,7 +142,7 @@ export function GameShelf({
 
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    const timer = setTimeout(() => setNotice(null), notice.share || notice.postId ? SHARE_NOTICE_MS : NOTICE_MS);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -156,7 +172,10 @@ export function GameShelf({
         if (detail) setDialog({ kind: 'edit', entryId: result.entryId });
         return;
       }
-      setNotice({ variant: 'success', title: t.added, text: t.addedText(result.gameName, result.status) });
+      // Quando uma janela abre em seguida (detalhar ou o pop-up do Zerado), a oferta de compartilhar espera ela fechar.
+      const opensDialog = detail || result.status === 'zerado';
+      setNotice({ variant: 'success', title: t.added, text: t.addedText(result.gameName, result.status), share: opensDialog ? undefined : result.activity });
+      if (opensDialog && result.activity) setPendingOffer(result.activity);
       // Escolheu "Adicionar e detalhar": abre a edição. Entrou direto em Zerado: convida a contar mais (tudo opcional).
       if (detail) setDialog({ kind: 'edit', entryId: result.entryId });
       else if (result.status === 'zerado') setDialog({ kind: 'zeroed', entryId: result.entryId });
@@ -190,9 +209,13 @@ export function GameShelf({
         setNotice({ variant: 'error', title: t.failed });
         return;
       }
-      setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status) });
-      // Mover para Zerado conclui na hora; o pop-up que convida a contar mais é opcional.
-      if (result.changed && result.status === 'zerado') setDialog({ kind: 'zeroed', entryId });
+      // Mover para Zerado conclui na hora; o pop-up que convida a contar mais é opcional (e a oferta de compartilhar espera por ele).
+      const opensZeroed = result.changed && result.status === 'zerado';
+      setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status), share: opensZeroed ? undefined : result.activity });
+      if (opensZeroed) {
+        if (result.activity) setPendingOffer(result.activity);
+        setDialog({ kind: 'zeroed', entryId });
+      }
     });
   };
 
@@ -215,19 +238,40 @@ export function GameShelf({
         return;
       }
       if (result.changed) {
-        setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status) });
-        if (to === 'zerado') setDialog({ kind: 'zeroed', entryId }); // pop-up opcional do Zerado
+        setNotice({ variant: 'success', title: t.moved, text: t.movedText(result.gameName, result.status), share: to === 'zerado' ? undefined : result.activity });
+        if (to === 'zerado') {
+          if (result.activity) setPendingOffer(result.activity);
+          setDialog({ kind: 'zeroed', entryId }); // pop-up opcional do Zerado
+        }
       }
     });
   };
 
-  const onSaved = (result: { gameName: string; statusChanged: boolean; status: ShelfStatus }) => {
+  const onSaved = (result: { gameName: string; statusChanged: boolean; status: ShelfStatus; activities: ActivityOffer[] }) => {
     const wasZeroedPopup = dialog?.kind === 'zeroed';
     const entryId = dialog && (dialog.kind === 'edit' || dialog.kind === 'zeroed') ? dialog.entryId : null;
-    setNotice({ variant: 'success', title: t.saved, text: t.savedText(result.gameName) });
-    setDialog(null);
     // Mudou para Zerado pela edição: o pop-up opcional também aparece (a não ser que ele mesmo acabou de salvar).
-    if (!wasZeroedPopup && result.statusChanged && result.status === 'zerado' && entryId) setDialog({ kind: 'zeroed', entryId });
+    const opensZeroed = !wasZeroedPopup && result.statusChanged && result.status === 'zerado' && entryId !== null;
+    // Oferta: a primeira atividade deste salvamento (as outras ficam em "Atividade recente") ou a que estava guardada.
+    const offer = result.activities[0] ?? pendingOffer ?? undefined;
+    setPendingOffer(opensZeroed ? (result.activities.find((activity) => activity.kind === 'finished') ?? pendingOffer) : null);
+    setNotice({ variant: 'success', title: t.saved, text: t.savedText(result.gameName), share: opensZeroed ? undefined : offer });
+    setDialog(opensZeroed && entryId ? { kind: 'zeroed', entryId } : null);
+  };
+
+  /** Fechou uma janela sem salvar: a oferta guardada (ex.: do "Zerou") aparece agora. */
+  const closeEntryDialog = () => {
+    setDialog(null);
+    if (pendingOffer) {
+      setNotice({ variant: 'info', title: fm.shareOffer, share: pendingOffer });
+      setPendingOffer(null);
+    }
+  };
+
+  const shared = (activityId: string, postId: string) => {
+    void activityId;
+    setSharing(null);
+    setNotice({ variant: 'success', title: fm.sharedToast, postId }); // a ação já revalida a página
   };
 
   const confirmRemove = () => {
@@ -416,8 +460,12 @@ export function GameShelf({
           key={`${dialog.kind}-${dialog.entryId}`}
           mode={dialog.kind}
           entryId={dialog.entryId}
-          onClose={() => setDialog(null)}
+          onClose={closeEntryDialog}
           onSaved={onSaved}
+          onShare={(activityId) => {
+            setDialog(null);
+            setSharing(activityId);
+          }}
           onRemove={(entryId, name) => setDialog({ kind: 'remove', entryId, name })}
           uploadMode={uploadMode}
           userId={userId}
@@ -425,6 +473,7 @@ export function GameShelf({
           onTagCreated={(tag) => setTagList((list) => (list.some((item) => item.id === tag.id) ? list : [...list, tag]))}
         />
       ) : null}
+      {own && sharing ? <ShareActivityModal key={sharing} activityId={sharing} author={author ?? { name: '', username: '' }} onClose={() => setSharing(null)} onShared={shared} /> : null}
       {own && quickAdd ? (
         <QuickAddModal key={quickAdd} status={quickAdd} onClose={() => setQuickAdd(null)} onConfirm={(games) => quickAddGames(quickAdd, games)} pending={saving} />
       ) : null}
@@ -459,6 +508,28 @@ export function GameShelf({
         <div className={styles.toast}>
           <Toast variant={notice.variant} title={notice.title} onClose={() => setNotice(null)} closeLabel={t.closeToast}>
             {notice.text}
+            {notice.share ? (
+              <>
+                {notice.text ? ' ' : null}
+                {notice.title === fm.shareOffer ? null : <>{fm.shareOffer} </>}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const id = notice.share?.id;
+                    setNotice(null);
+                    if (id) setSharing(id);
+                  }}
+                >
+                  {fm.shareOfferAction}
+                </Button>
+              </>
+            ) : null}
+            {notice.postId ? (
+              <ButtonLink href={`/post/${notice.postId}`} size="sm" variant="outline">
+                {fm.viewPost}
+              </ButtonLink>
+            ) : null}
           </Toast>
         </div>
       ) : null}

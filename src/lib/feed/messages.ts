@@ -1,4 +1,5 @@
 import { IMAGE_MAX_BYTES } from '@/lib/profile/images';
+import type { ActivityKind } from '@/lib/shelf/activity';
 import { REPORT_DETAILS_MAX } from '@/lib/shelf/screenshot';
 import { COMMENT_MAX, type CommentErrorCode } from './comments';
 import { POST_GAMES_MAX, POST_MAX, type PostErrorCode } from './posts';
@@ -140,6 +141,35 @@ export const feedMessages = {
   reportDetailsTooLong: `Os detalhes podem ter até ${REPORT_DETAILS_MAX} caracteres.`, // novo
   reportNotFound: 'Não encontramos o que você quer denunciar. Pode ter sido excluído.', // novo
   closeToast: 'Fechar aviso', // novo
+
+  // Atividades compartilhadas (entrega 3, parte 2). As frases vêm do Figma ("Post de atividade").
+  activityPhrase: {
+    added: 'Adicionou ao Game Shelf',
+    started: 'Começou a jogar',
+    finished: 'Zerou',
+    stopped: 'Parou de jogar',
+    rated: 'Avaliou',
+    review: 'Escreveu uma review',
+    screenshot: 'Subiu uma screenshot',
+  } satisfies Record<ActivityKind, string>,
+  activityRating: (rating: number) => `Nota ${rating} de 5`,
+  activityScreenshotAlt: 'Screenshot do jogo', // novo
+  shareTitle: 'Compartilhar atividade', // novo
+  shareOffer: 'Quer compartilhar isso no seu feed?', // novo
+  shareOfferAction: 'Compartilhar', // novo
+  shareNotNow: 'Agora não', // novo
+  shareIntro: 'Veja como o post vai aparecer. Nada é publicado até você clicar em Compartilhar.', // novo
+  shareNoteLabel: 'Texto (opcional)', // novo
+  shareNotePlaceholder: 'Quer dizer algo sobre isso?', // novo
+  shareSend: 'Compartilhar', // novo
+  shared: 'Compartilhado', // novo
+  sharedToast: 'Compartilhado no seu feed.', // novo
+  viewPost: 'Ver post', // novo
+  shareFailed: 'Não foi possível compartilhar. Tente de novo.', // novo
+  shareNotFound: 'Não encontramos essa atividade. Ela pode ter sido removida.', // novo
+  shareTooLong: `O texto passou de ${POST_MAX.toLocaleString('pt-BR')} caracteres.`, // novo
+  recentActivity: 'Atividade recente', // novo
+  recentActivityEmpty: 'Nenhuma atividade ainda.', // novo
 
   postErrors: {
     empty: 'Escreva algo ou adicione uma imagem para publicar.',
