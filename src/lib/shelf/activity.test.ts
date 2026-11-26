@@ -2,13 +2,13 @@ import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { registerUser } from '@/lib/auth/users';
 import type { Db } from '@/lib/db/connect';
-import { postGames, posts, shelfActivities, shelfEntries, users } from '@/lib/db/schema';
+import { follows, postGames, posts, shelfActivities, shelfEntries, users } from '@/lib/db/schema';
 import type { IgdbGame } from '@/lib/igdb/igdb';
-import { deletePost } from '@/lib/feed/posts';
+import { createPost, deletePost, listPosts } from '@/lib/feed/posts';
 import { createTestDb, validSignup } from '@/test/db';
 import { ACTIVITY_NOTE_MAX, listEntryActivities, MERGE_WINDOW_MS, shareActivity } from './activity';
 import { removeEntry, updateEntry } from './entry';
-import { addToShelf, moveEntry, placeEntry } from './shelf';
+import { addManyToShelf, addToShelf, moveEntry, placeEntry } from './shelf';
 
 const T0 = new Date('2026-11-17T12:00:00.000Z');
 const after = (ms: number) => new Date(T0.getTime() + ms);
@@ -273,5 +273,55 @@ describe('tirar o jogo da Game Shelf', () => {
     const replaced = await updateEntry(db, user, entryId, { screenshot: null }, after(2 * MIN));
     expect(replaced.ok && replaced.replacedScreenshot).toBe(ref);
     expect(await db.select().from(shelfActivities).where(eq(shelfActivities.screenshotRef, ref))).toHaveLength(0);
+  });
+});
+
+describe('ajustes de 26/11/2026', () => {
+  it('o cadastro rápido não gera atividade', async () => {
+    const user = await account();
+    const result = await addManyToShelf(db, user, [game(600 + counter), game(700 + counter)], 'zerado', T0);
+    expect(result.ok).toBe(true);
+    expect(await db.select().from(shelfActivities).where(eq(shelfActivities.userId, user))).toHaveLength(0);
+  });
+
+  it('com várias atividades num salvamento, a mais relevante vem primeiro (review, nota, screenshot, coluna)', async () => {
+    const user = await account();
+    const { entryId } = await entryOf(user, 800 + counter, 'jogando');
+    const saved = await updateEntry(
+      db,
+      user,
+      entryId,
+      { status: 'parado', rating: 3, review: 'Parei no meio.', screenshot: 'screenshots/dddddddd-dddd-4ddd-8ddd-dddddddddddd.png' },
+      after(MIN),
+    );
+    expect(saved.ok && saved.activities.map((activity) => activity.kind)).toEqual(['review', 'screenshot', 'stopped']);
+    const rated = await updateEntry(db, user, entryId, { rating: 4, screenshot: 'screenshots/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.png' }, after(2 * MIN + MERGE_WINDOW_MS));
+    expect(rated.ok && rated.activities.map((activity) => activity.kind)).toEqual(['rated', 'screenshot']);
+  });
+
+  it('Meus jogos e a comunidade mostram posts e reviews; Seguindo e o perfil mostram todas as atividades', async () => {
+    const author = await account();
+    const viewer = await account();
+    await db.insert(follows).values({ followerId: viewer, followeeId: author });
+    const igdbId = 900 + counter;
+    const { entryId } = await entryOf(author, igdbId, 'jogando');
+    await entryOf(viewer, igdbId, 'jogando'); // o jogo também está no Game Shelf de quem vê
+    const started = await listEntryActivities(db, author, entryId);
+    const startedShare = await shareActivity(db, author, started[0].id, '', after(MIN));
+    const review = await updateEntry(db, author, entryId, { review: 'Ótimo.' }, after(2 * MIN));
+    if (!review.ok || !startedShare.ok) throw new Error('setup');
+    const reviewShare = await shareActivity(db, author, review.activities[0].id, '', after(3 * MIN));
+    const plain = await createPost(db, author, { body: 'Post comum', games: [game(igdbId)] }, after(4 * MIN));
+    if (!reviewShare.ok || !plain.ok) throw new Error('setup');
+
+    const ids = async (filter: Parameters<typeof listPosts>[1]) => (await listPosts(db, filter, { limit: 50 })).posts.map((post) => post.id);
+    const mine = await ids({ kind: 'my-games', viewerId: viewer });
+    expect(mine).toEqual(expect.arrayContaining([plain.postId, reviewShare.postId]));
+    expect(mine).not.toContain(startedShare.postId);
+    const community = await ids({ kind: 'all' });
+    expect(community).toEqual(expect.arrayContaining([plain.postId, reviewShare.postId]));
+    expect(community).not.toContain(startedShare.postId);
+    expect(await ids({ kind: 'following', viewerId: viewer })).toEqual(expect.arrayContaining([plain.postId, reviewShare.postId, startedShare.postId]));
+    expect(await ids({ kind: 'user', userId: author })).toEqual(expect.arrayContaining([plain.postId, reviewShare.postId, startedShare.postId]));
   });
 });

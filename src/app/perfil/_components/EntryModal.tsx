@@ -159,6 +159,8 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Atividade que a pessoa quer compartilhar enquanto há alterações não salvas: pede confirmação antes de descartar. */
+  const [pendingShare, setPendingShare] = useState<string | null>(null);
   const base = useId();
   const panel = (value: TabValue) => `${base}-${value}`;
 
@@ -399,17 +401,41 @@ function EntryForm({ mode, entry, timeToBeat, failed, draft, setDraft, title, on
               <RecentActivity
                 entryId={entry.entryId}
                 onShare={(activityId) => {
-                  // Sai da edição para ver a prévia: a imagem enviada e ainda não salva é descartada, como ao fechar.
-                  if (typeof draft?.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
-                  onShare(activityId);
+                  // Com alterações não salvas, avisa antes de descartar (decisão de 26/11/2026).
+                  if (JSON.stringify(draft) !== JSON.stringify(toDraft(entry))) setPendingShare(activityId);
+                  else shareNow(activityId);
                 }}
               />
             ) : null}
           </>
         )}
       </div>
+      <Modal
+        open={pendingShare !== null}
+        onClose={() => setPendingShare(null)}
+        title={t.unsavedShareTitle}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setPendingShare(null)}>
+              {t.unsavedShareBack}
+            </Button>
+            <Button variant="danger" onClick={() => pendingShare && shareNow(pendingShare)}>
+              {t.unsavedShareConfirm}
+            </Button>
+          </>
+        }
+      >
+        <p className={styles.hint}>{t.unsavedShareText}</p>
+      </Modal>
     </Modal>
   );
+
+  /** Sai da edição para ver a prévia: a imagem enviada e ainda não salva é descartada, como ao fechar. */
+  function shareNow(activityId: string) {
+    setPendingShare(null);
+    if (typeof draft?.shotChange === 'string') void discardScreenshotAction(draft.shotChange);
+    onShare?.(activityId);
+  }
 }
 
 function Panel({ id, tabId, hidden, children }: { id: string; tabId: string; hidden: boolean; children: ReactNode }) {

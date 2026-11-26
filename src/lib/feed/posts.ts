@@ -222,19 +222,30 @@ function condition(filter: FeedFilter): SQL | undefined {
         inArray(posts.userId, sql`(select ${follows.followeeId} from ${follows} where ${follows.followerId} = ${filter.viewerId})`),
       );
     case 'my-games':
-      // Entra o post que marca QUALQUER jogo do Game Shelf de quem vê em Quero jogar, Jogando ou Zerado.
-      return sql`exists (select 1 from ${postGames} inner join ${shelfEntries} on ${shelfEntries.gameId} = ${postGames.gameId} where ${postGames.postId} = ${posts.id} and ${shelfEntries.userId} = ${filter.viewerId} and ${shelfEntries.status} in (${sql.join(
-        MY_GAMES_STATUSES.map((status) => sql`${status}`),
-        sql`, `,
-      )}))`;
+      // Entra o post que marca QUALQUER jogo do Game Shelf de quem vê em Quero jogar, Jogando ou Zerado. Só conteúdo:
+      // atividades entram só se forem review (decisão de 26/11/2026).
+      return and(
+        sql`exists (select 1 from ${postGames} inner join ${shelfEntries} on ${shelfEntries.gameId} = ${postGames.gameId} where ${postGames.postId} = ${posts.id} and ${shelfEntries.userId} = ${filter.viewerId} and ${shelfEntries.status} in (${sql.join(
+          MY_GAMES_STATUSES.map((status) => sql`${status}`),
+          sql`, `,
+        )}))`,
+        contentOnly,
+      );
     case 'user':
       return eq(posts.userId, filter.userId);
     case 'post':
       return eq(posts.id, filter.postId);
     case 'all':
-      return undefined;
+      // Posts recentes da comunidade: atividade é de quem você segue; aqui, só conteúdo (posts e reviews).
+      return contentOnly;
   }
 }
+
+/**
+ * Só conteúdo (decisão de 26/11/2026): posts comuns e reviews compartilhadas. Mudança de coluna, nota e screenshot
+ * aparecem só em Seguindo e no perfil de quem compartilhou.
+ */
+const contentOnly = sql`(${posts.activityId} is null or exists (select 1 from ${shelfActivities} where ${shelfActivities.id} = ${posts.activityId} and ${shelfActivities.kind} = 'review'))`;
 
 /** Lista posts do mais recente para o mais antigo (sem algoritmo), em páginas. */
 export async function listPosts(db: Db, filter: FeedFilter, options: { before?: Cursor | null; limit?: number; /** Quem está vendo (para saber se curtiu). */ viewerId?: string } = {}): Promise<FeedPage> {

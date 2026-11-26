@@ -5,7 +5,7 @@ import { games, shelfEntries } from '@/lib/db/schema';
 import { isShelfStatus, type ShelfStatus } from './status';
 import { topSortOrder } from './order';
 import { checkTagIds, replaceEntryTags, tagsByEntry } from './tags';
-import { completeRecentFinished, dropEntryActivities, kindForStatus, recordActivity, releaseActivities, type ActivityOffer } from './activity';
+import { byRelevance, completeRecentFinished, dropEntryActivities, kindForStatus, recordActivity, releaseActivities, type ActivityOffer } from './activity';
 
 /** Edição da entrada da Game Shelf (`01_produto/regras-de-negocio/gameshelf.md`). */
 
@@ -248,7 +248,7 @@ export async function updateEntry(db: Db, userId: string, entryId: string, input
   if (final.screenshotRef && final.screenshotRef !== current.screenshotRef) {
     activities.push(await recordActivity(db, { ...base, kind: 'screenshot', screenshotRef: final.screenshotRef, spoiler: final.screenshotSpoiler }, now));
   }
-  return { ok: true, gameName: current.game.name, status, statusChanged, replacedScreenshot, activities };
+  return { ok: true, gameName: current.game.name, status, statusChanged, replacedScreenshot, activities: byRelevance(activities) }; // a primeira é a que o aviso oferece
 }
 
 export type RemoveEntryResult = { ok: true; gameName: string; screenshotRef: string | null } | { ok: false; error: 'not-found' };
