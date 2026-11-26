@@ -190,3 +190,42 @@ describe('Game Shelf: atividade recente da entrada', () => {
     expect(await within(dialog).findByText('Nenhuma atividade ainda.')).toBeInTheDocument();
   });
 });
+
+describe('Game Shelf: compartilhar com alterações não salvas', () => {
+  const entryData = { entryId: ID, status: 'quero-jogar', platform: null, rating: null, review: null, reviewSpoiler: false, started: { month: null, year: null }, ended: { month: null, year: null }, playMinutes: null, tagIds: [], gameName: 'Celeste', year: '2018', platforms: [], screenshotSpoiler: false };
+  const openEdit = async (user: ReturnType<typeof userEvent.setup>) => {
+    actions.openEntryAction.mockResolvedValue({ ok: true, timeToBeat: null, entry: entryData });
+    activityActions.recentActivitiesAction.mockResolvedValue({ ok: true, rows: [{ id: ACTIVITY, phrase: 'Adicionou ao Game Shelf', time: 'há 1 h', postId: null }] });
+    activityActions.previewActivityAction.mockResolvedValue(preview({ phrase: 'Adicionou ao Game Shelf', status: 'quero-jogar' }));
+    await user.click(screen.getByRole('button', { name: 'Ações de Celeste' }));
+    await user.click(screen.getByRole('menuitem', { name: /Editar/ }));
+    return screen.findByRole('dialog', { name: /Editar entrada/ });
+  };
+
+  it('sem alterações, Compartilhar abre a prévia direto', async () => {
+    const user = userEvent.setup();
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" author={author} />);
+    const dialog = await openEdit(user);
+    await user.click(await within(dialog).findByRole('button', { name: 'Compartilhar' }));
+    expect(screen.queryByRole('dialog', { name: 'Descartar as alterações?' })).toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Compartilhar atividade' })).toBeInTheDocument();
+  });
+
+  it('com alterações, avisa antes; "Voltar à edição" mantém a edição e "Descartar e compartilhar" abre a prévia', async () => {
+    const user = userEvent.setup();
+    render(<GameShelf columns={columns()} own title="Game Shelf" tags={[]} uploadMode="local" userId="u1" author={author} />);
+    const dialog = await openEdit(user);
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'Jogando');
+    await user.click(await within(dialog).findByRole('button', { name: 'Compartilhar' }));
+
+    const confirm = await screen.findByRole('dialog', { name: 'Descartar as alterações?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Voltar à edição' }));
+    expect(screen.queryByRole('dialog', { name: 'Compartilhar atividade' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: /Editar entrada/ })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Compartilhar' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Descartar as alterações?' })).getByRole('button', { name: 'Descartar e compartilhar' }));
+    expect(await screen.findByRole('dialog', { name: 'Compartilhar atividade' })).toBeInTheDocument();
+    expect(actions.saveEntryAction).not.toHaveBeenCalled();
+  });
+});

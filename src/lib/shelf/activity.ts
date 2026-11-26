@@ -12,6 +12,15 @@ export const ACTIVITY_KINDS = ['added', 'started', 'finished', 'stopped', 'rated
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 export const isActivityKind = (value: unknown): value is ActivityKind => typeof value === 'string' && (ACTIVITY_KINDS as readonly string[]).includes(value);
 
+/**
+ * Relevância para o aviso de compartilhar (decisão de 26/11/2026): quando um salvamento gera várias atividades, o aviso
+ * oferece a mais relevante. Review, depois nota, depois screenshot e, por último, a mudança de coluna.
+ */
+const RELEVANCE: Record<ActivityKind, number> = { review: 0, rated: 1, screenshot: 2, finished: 3, started: 3, stopped: 3, added: 3 };
+
+/** Ordena as atividades da mais relevante para a menos (a ordem entre iguais é mantida). */
+export const byRelevance = <T extends { kind: ActivityKind }>(list: T[]): T[] => [...list].sort((a, b) => RELEVANCE[a.kind] - RELEVANCE[b.kind]);
+
 /** Edições seguidas da mesma nota ou review dentro desta janela viram uma só atividade. */
 export const MERGE_WINDOW_MS = 5 * 60 * 1000;
 export { ACTIVITY_NOTE_MAX };

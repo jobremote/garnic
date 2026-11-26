@@ -56,6 +56,10 @@ export const shelfMessages = {
   // Menu do card
   editEntry: 'Editar entrada',
   removeEntry: 'Remover da Game Shelf',
+  unsavedShareTitle: 'Descartar as alterações?', // novo
+  unsavedShareText: 'Você tem alterações não salvas nesta entrada. Para compartilhar, a edição fecha e elas serão perdidas.', // novo
+  unsavedShareBack: 'Voltar à edição', // novo
+  unsavedShareConfirm: 'Descartar e compartilhar', // novo
   // Editar entrada
   editTitle: 'Editar entrada', // novo
   tabsLabel: 'Seções da entrada', // novo

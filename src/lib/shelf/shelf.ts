@@ -53,7 +53,7 @@ export type AddToShelfResult =
  * entrada existente (`alreadyOnShelf`) para a tela abri-la. O Neon HTTP não tem transações, então a regra fica no
  * índice único (`shelf_entries_user_game_key`) e no `ON CONFLICT DO NOTHING`.
  */
-export async function addToShelf(db: Db, userId: string, game: IgdbGame, status: unknown, now = new Date()): Promise<AddToShelfResult> {
+export async function addToShelf(db: Db, userId: string, game: IgdbGame, status: unknown, now = new Date(), options: { /** Registrar a atividade (o cadastro rápido não registra). */ activity?: boolean } = {}): Promise<AddToShelfResult> {
   if (!isShelfStatus(status)) return { ok: false, error: 'invalid-status' };
   const saved = await saveGame(db, game);
   const [created] = await db
@@ -62,7 +62,7 @@ export async function addToShelf(db: Db, userId: string, game: IgdbGame, status:
     .onConflictDoNothing({ target: [shelfEntries.userId, shelfEntries.gameId] })
     .returning({ id: shelfEntries.id });
   if (created) {
-    const activity = (await recordStatusActivity(db, userId, created.id, now)) ?? undefined;
+    const activity = options.activity === false ? undefined : ((await recordStatusActivity(db, userId, created.id, now)) ?? undefined);
     return { ok: true, entryId: created.id, status, alreadyOnShelf: false, gameName: saved.name, activity };
   }
 
@@ -94,7 +94,7 @@ export async function addManyToShelf(db: Db, userId: string, gamesToAdd: IgdbGam
   const alreadyOnShelf: string[] = [];
   // Cada jogo novo entra no topo, então a lista é percorrida de trás para frente: o primeiro escolhido termina no topo.
   for (const [index, game] of [...gamesToAdd.entries()].reverse()) {
-    const result = await addToShelf(db, userId, game, status, new Date(now.getTime() - index));
+    const result = await addToShelf(db, userId, game, status, new Date(now.getTime() - index), { activity: false }); // cadastro rápido não gera atividade (decisão de 26/11/2026)
     if (!result.ok) return { ok: false, error: 'invalid-status' };
     (result.alreadyOnShelf ? alreadyOnShelf : added).unshift(result.gameName);
   }
