@@ -26,7 +26,7 @@ export interface PublicEntry {
   screenshotRef: string | null;
   screenshotSpoiler: boolean;
   tags: TagView[];
-  game: { name: string; releasedAt: Date | null; coverImageId: string | null };
+  game: { igdbId: number; slug: string | null; name: string; releasedAt: Date | null; coverImageId: string | null };
   /** Se quem está vendo já denunciou a screenshot atual. */
   reportedByViewer: boolean;
 }
@@ -64,7 +64,7 @@ export async function getPublicEntry(db: Db, viewerId: string, entryId: string):
     screenshotRef: entry.screenshotRef,
     screenshotSpoiler: entry.screenshotSpoiler,
     tags: (await tagsByEntry(db, [entry.id])).get(entry.id) ?? [],
-    game: { name: game.name, releasedAt: game.releasedAt, coverImageId: game.coverImageId },
+    game: { igdbId: game.igdbId, slug: game.slug, name: game.name, releasedAt: game.releasedAt, coverImageId: game.coverImageId },
     reportedByViewer,
   };
 }

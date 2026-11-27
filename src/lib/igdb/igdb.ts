@@ -131,7 +131,53 @@ export function toTimeToBeat(raw: RawTimeToBeat | undefined): TimeToBeat | null 
   return time.hastily || time.normally || time.completely ? time : null;
 }
 
+/** Detalhes da página do jogo (verificados na API real em 27/11/2026). */
+export interface IgdbGameDetails {
+  summary: string | null;
+  genres: string[];
+  developers: string[];
+  publishers: string[];
+  /** Arte oficial para o fundo do cabeçalho; sem arte, a primeira screenshot oficial. */
+  backdropImageId: string | null;
+}
+
+interface RawDetails {
+  summary?: string;
+  genres?: { name?: string }[];
+  involved_companies?: { developer?: boolean; publisher?: boolean; company?: { name?: string } }[];
+  artworks?: { image_id?: string; width?: number; height?: number }[];
+  screenshots?: { image_id?: string }[];
+}
+
+const DETAILS_FIELDS =
+  'summary,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,artworks.image_id,artworks.width,artworks.height,screenshots.image_id';
+
+const IMAGE_ID = /^[a-z0-9]+$/i;
+const names = (list: (string | undefined)[]) => [...new Set(list.filter((name): name is string => typeof name === 'string' && name.trim() !== '').map((name) => name.trim()))];
+
+/** Converte os detalhes crus. Para o fundo, prefere uma arte larga (paisagem); sem nenhuma, uma screenshot. */
+export function toGameDetails(raw: RawDetails | undefined): IgdbGameDetails {
+  const companies = raw?.involved_companies ?? [];
+  const artworks = (raw?.artworks ?? []).filter((art) => art.image_id && IMAGE_ID.test(art.image_id));
+  const wide = artworks.find((art) => (art.width ?? 0) > (art.height ?? 0));
+  const screenshot = (raw?.screenshots ?? []).find((shot) => shot.image_id && IMAGE_ID.test(shot.image_id));
+  const summary = raw?.summary?.trim();
+  return {
+    summary: summary ? summary : null,
+    genres: names((raw?.genres ?? []).map((genre) => genre.name)),
+    developers: names(companies.filter((item) => item.developer).map((item) => item.company?.name)),
+    publishers: names(companies.filter((item) => item.publisher).map((item) => item.company?.name)),
+    backdropImageId: (wide ?? artworks[0])?.image_id ?? screenshot?.image_id ?? null,
+  };
+}
+
 export type CoverSize = 'cover_small' | 'cover_big' | 'thumb' | 'micro';
+
+/** Imagem larga do IGDB (fundo do cabeçalho). */
+export function backdropUrl(imageId: string | null | undefined): string | undefined {
+  if (!imageId || !IMAGE_ID.test(imageId)) return undefined;
+  return `https://images.igdb.com/igdb/image/upload/t_1080p/${imageId}.jpg`;
+}
 
 /** Endereço da capa. Use `retina` para o dobro de resolução (telas com DPR 2). */
 export function coverUrl(imageId: string | null | undefined, size: CoverSize = 'cover_big', retina = false): string | undefined {
@@ -269,6 +315,13 @@ export function createIgdbClient(options: IgdbClientOptions) {
       if (!Number.isSafeInteger(igdbId) || igdbId <= 0) return null;
       const raw = (await post('game_time_to_beats', `fields hastily,normally,completely; where game_id = ${igdbId}; limit 1;`)) as RawTimeToBeat[];
       return toTimeToBeat(raw[0]);
+    },
+
+    /** Resumo, gêneros, empresas e imagem de fundo (uma só consulta). `null` se o jogo não existe no IGDB. */
+    async getGameDetails(igdbId: number): Promise<IgdbGameDetails | null> {
+      if (!Number.isSafeInteger(igdbId) || igdbId <= 0) return null;
+      const raw = (await post('games', `fields ${DETAILS_FIELDS}; where id = ${igdbId}; limit 1;`)) as RawDetails[];
+      return raw[0] ? toGameDetails(raw[0]) : null;
     },
   };
 }

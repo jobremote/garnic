@@ -148,6 +148,12 @@
   height: 100%;
   object-fit: cover;
 }
+.gameLink {
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-link);
+}
+
 .gameName {
   margin: 0;
   font: var(--nds-type-label);

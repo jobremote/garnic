@@ -72,7 +72,7 @@ async function activityViewOf(activityId: string): Promise<{ activity: ActivityV
         playMinutes: activity.playMinutes,
         review: activity.review,
         screenshotRef: activity.screenshotRef,
-        game: { igdbId: game.igdbId, name: game.name, coverImageId: game.coverImageId, releasedAt: game.releasedAt },
+        game: { igdbId: game.igdbId, slug: game.slug, name: game.name, coverImageId: game.coverImageId, releasedAt: game.releasedAt },
       },
     },
     activity.userId,

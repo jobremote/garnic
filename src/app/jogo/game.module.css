@@ -1,0 +1,191 @@
+/*
+ * Página do jogo: layout do protótipo ("Página do jogo" no arquivo Feed do Figma). Cabeçalho largo e, abaixo, coluna
+ * principal (Sobre, Screenshots, Posts) e lateral (Na comunidade, Tempo para zerar), na coluna de 1040 px do cabeçalho.
+ * No celular, a lateral vem logo depois do cabeçalho. Só tokens semânticos do NogasDS.
+ */
+.page {
+  --content-width: 1040px;
+  --content-gutter: var(--nds-space-inset-xl);
+  --nds-top-bar-content-width: var(--content-width);
+  --nds-top-bar-gutter: var(--content-gutter);
+
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  background: var(--nds-surface-base);
+}
+
+.layout {
+  flex: 1 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas: 'main side';
+  align-items: start;
+  gap: var(--nds-space-gap-2xl);
+  width: 100%;
+  max-width: calc(var(--content-width) + 2 * var(--content-gutter));
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nds-space-inset-2xl) var(--content-gutter) var(--nds-space-inset-4xl);
+}
+
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-xl);
+  min-width: 0;
+}
+
+.side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-md);
+  padding: var(--nds-space-inset-xl);
+  border: var(--nds-stroke-default) solid var(--nds-border-subtle);
+  border-radius: var(--nds-radius-default);
+  background: var(--nds-surface-raised);
+}
+
+.cardTitle {
+  margin: 0;
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--nds-type-subtitle);
+  letter-spacing: var(--nds-type-subtitle-tracking);
+  color: var(--nds-text-primary);
+}
+
+.overline {
+  margin: 0;
+  font: var(--nds-type-overline);
+  letter-spacing: var(--nds-type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--nds-text-muted);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nds-space-gap-2xl);
+  margin: 0;
+}
+
+.summary {
+  margin: 0;
+  font: var(--nds-type-body);
+  letter-spacing: var(--nds-type-body-tracking);
+  color: var(--nds-text-primary);
+  white-space: pre-line;
+}
+
+.note,
+.muted {
+  margin: 0;
+  font: var(--nds-type-caption);
+  letter-spacing: var(--nds-type-caption-tracking);
+  color: var(--nds-text-muted);
+}
+
+.muted {
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+  color: var(--nds-text-secondary);
+}
+
+.muted a {
+  color: var(--nds-link);
+}
+
+.empty {
+  margin: 0;
+  font: var(--nds-type-body);
+  letter-spacing: var(--nds-type-body-tracking);
+  color: var(--nds-text-muted);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--nds-space-gap-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-lg);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.viewerImage {
+  display: block;
+  width: 100%;
+  max-height: 70dvh;
+  object-fit: contain;
+  background: var(--nds-surface-sunken);
+}
+
+.viewerFooter {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nds-space-gap-sm);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: var(--nds-space-gap-sm);
+  font: var(--nds-type-label);
+  letter-spacing: var(--nds-type-label-tracking);
+  color: var(--nds-text-primary);
+}
+
+.toast {
+  position: fixed;
+  z-index: 20;
+  bottom: var(--nds-space-inset-xl);
+  left: 50%;
+  width: min(480px, calc(100vw - 2 * var(--nds-space-inset-xl)));
+  transform: translateX(-50%);
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'side'
+      'main';
+    padding: var(--nds-space-inset-lg) var(--nds-space-inset-lg) var(--nds-space-inset-3xl);
+    gap: var(--nds-space-gap-lg);
+  }
+  .gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

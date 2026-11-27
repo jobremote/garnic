@@ -48,7 +48,10 @@ export function ProfileView({
   followCounters,
   posts,
   postsNext,
+  openEntryId,
 }: {
+  /** Entrada que abre já em edição (vinda da página do jogo). */
+  openEntryId?: string;
   viewer: CurrentUser;
   profile: PublicProfile;
   locks: EditLocks | null;
@@ -116,7 +119,7 @@ export function ProfileView({
         </header>
 
         <section className={styles.section} aria-labelledby="game-shelf">
-          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} tags={tags} uploadMode={storageMode()} userId={profile.id} author={{ name: profile.name, username: profile.username, avatarUrl: mediaUrl(profile.avatarKey) }} />
+          <GameShelf columns={toShelfData(shelf)} own={own} title={t.gameShelf} tags={tags} uploadMode={storageMode()} userId={profile.id} author={{ name: profile.name, username: profile.username, avatarUrl: mediaUrl(profile.avatarKey) }} openEntryId={own ? openEntryId : undefined} />
         </section>
 
         <section className={styles.section} aria-labelledby="posts">

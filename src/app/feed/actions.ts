@@ -164,6 +164,7 @@ export async function loadMorePostsAction(scope: unknown, cursor: unknown): Prom
   let parsed: FeedScope;
   if (kind === 'following' || kind === 'my-games' || kind === 'all') parsed = { kind };
   else if (kind === 'user' && typeof (scope as { userId?: unknown }).userId === 'string' && UUID.test((scope as { userId: string }).userId)) parsed = { kind: 'user', userId: (scope as { userId: string }).userId };
+  else if (kind === 'game' && typeof (scope as { gameId?: unknown }).gameId === 'string' && UUID.test((scope as { gameId: string }).gameId)) parsed = { kind: 'game', gameId: (scope as { gameId: string }).gameId };
   else return { ok: false };
   const page = await listPosts(await getDb(), filterFor(parsed, viewer.id), { before, viewerId: viewer.id });
   const now = new Date();

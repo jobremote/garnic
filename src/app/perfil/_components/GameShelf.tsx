@@ -79,6 +79,7 @@ export function GameShelf({
   uploadMode,
   userId,
   author,
+  openEntryId,
 }: {
   columns: ShelfData;
   own: boolean;
@@ -89,6 +90,8 @@ export function GameShelf({
   userId: string;
   /** Quem é a dona (a prévia do post de atividade mostra o nome e o avatar). */
   author?: ShareAuthor;
+  /** Abre a edição desta entrada ao carregar (link "Editar" da página do jogo). */
+  openEntryId?: string;
 }) {
   /** Atividade que a pessoa escolheu compartilhar (abre a prévia). */
   const [sharing, setSharing] = useState<string | null>(null);
@@ -135,7 +138,9 @@ export function GameShelf({
   const [session, setSession] = useState(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialog, setDialog] = useState<Dialog>(() =>
+    openEntryId && own && Object.values(columns).some((cards) => cards.some((card) => card.entryId === openEntryId)) ? { kind: 'edit', entryId: openEntryId } : null,
+  );
   const [dragging, setDragging] = useState<{ entryId: string; from: ShelfStatus } | null>(null);
   /** Coluna sob o card arrastado e a posição de soltura nela (0 = topo). */
   const [over, setOver] = useState<{ status: ShelfStatus; index: number } | null>(null);

@@ -135,6 +135,8 @@ export async function deletePost(db: Db, userId: string, postId: string): Promis
 /** Jogo marcado em um post. `status` é o do jogo no Game Shelf de quem postou (nulo se o jogo não está lá). */
 export interface PostGame {
   igdbId: number;
+  /** Slug do IGDB (endereço da página do jogo). */
+  slug: string | null;
   name: string;
   coverImageId: string | null;
   status: ShelfStatus | null;
@@ -169,7 +171,7 @@ export interface PostActivity {
   playMinutes: number | null;
   review: string | null;
   screenshotRef: string | null;
-  game: { igdbId: number; name: string; coverImageId: string | null; releasedAt: Date | null };
+  game: { igdbId: number; slug: string | null; name: string; coverImageId: string | null; releasedAt: Date | null };
 }
 
 /** De onde vêm os posts. */
@@ -178,6 +180,8 @@ export type FeedFilter =
   | { kind: 'my-games'; viewerId: string }
   | { kind: 'user'; userId: string }
   | { kind: 'post'; postId: string }
+  /** Página do jogo: posts que marcam o jogo, só conteúdo (decisão de 27/11/2026). */
+  | { kind: 'game'; gameId: string }
   | { kind: 'all' };
 
 /** Posição na lista: o post mais antigo da página anterior (data e id desempatam posts do mesmo instante). */
@@ -198,12 +202,13 @@ export function decodeCursor(value: unknown): Cursor | null {
 }
 
 /** De onde a tela pede posts: o servidor monta o filtro (quem vê é sempre quem está logado). */
-export type FeedScope = { kind: 'following' } | { kind: 'my-games' } | { kind: 'all' } | { kind: 'user'; userId: string };
+export type FeedScope = { kind: 'following' } | { kind: 'my-games' } | { kind: 'all' } | { kind: 'user'; userId: string } | { kind: 'game'; gameId: string };
 
 export function filterFor(scope: FeedScope, viewerId: string): FeedFilter {
   if (scope.kind === 'following') return { kind: 'following', viewerId };
   if (scope.kind === 'my-games') return { kind: 'my-games', viewerId };
   if (scope.kind === 'user') return { kind: 'user', userId: scope.userId };
+  if (scope.kind === 'game') return { kind: 'game', gameId: scope.gameId };
   return { kind: 'all' };
 }
 
@@ -235,6 +240,8 @@ function condition(filter: FeedFilter): SQL | undefined {
       return eq(posts.userId, filter.userId);
     case 'post':
       return eq(posts.id, filter.postId);
+    case 'game':
+      return and(sql`exists (select 1 from ${postGames} where ${postGames.postId} = ${posts.id} and ${postGames.gameId} = ${filter.gameId})`, contentOnly);
     case 'all':
       // Posts recentes da comunidade: atividade é de quem você segue; aqui, só conteúdo (posts e reviews).
       return contentOnly;
@@ -289,6 +296,7 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       .select({
         postId: postGames.postId,
         igdbId: games.igdbId,
+        slug: games.slug,
         name: games.name,
         cover: games.coverImageId,
         status: shelfEntries.status,
@@ -301,7 +309,7 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
       .orderBy(postGames.postId, postGames.position);
     for (const row of marked) {
       const list = gamesByPost.get(row.postId) ?? [];
-      list.push({ igdbId: row.igdbId, name: row.name, coverImageId: row.cover, status: isShelfStatus(row.status) ? row.status : null });
+      list.push({ igdbId: row.igdbId, slug: row.slug, name: row.name, coverImageId: row.cover, status: isShelfStatus(row.status) ? row.status : null });
       gamesByPost.set(row.postId, list);
     }
   }
@@ -324,7 +332,7 @@ export async function listPosts(db: Db, filter: FeedFilter, options: { before?: 
         playMinutes: activity.playMinutes,
         review: activity.review,
         screenshotRef: activity.screenshotRef,
-        game: { igdbId: game.igdbId, name: game.name, coverImageId: game.coverImageId, releasedAt: game.releasedAt },
+        game: { igdbId: game.igdbId, slug: game.slug, name: game.name, coverImageId: game.coverImageId, releasedAt: game.releasedAt },
       });
     }
   }

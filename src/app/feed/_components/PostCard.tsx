@@ -54,7 +54,7 @@ export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: Post
     name: group.status ? STATUS_LABEL[group.status] : undefined,
     label: group.status ? <Badge tone={STATUS_TONE[group.status]}>{STATUS_LABEL[group.status]}</Badge> : undefined,
     children: group.items.map((game) => (
-      <MediaTag key={game.igdbId} thumbnail={game.coverUrl}>
+      <MediaTag key={game.igdbId} thumbnail={game.coverUrl} href={game.href}>
         {game.name}
       </MediaTag>
     )),
@@ -136,6 +136,7 @@ export function PostCard({ post, viewerId, uploadMode, onDeleted }: { post: Post
           game={
             <ActivityGame
               title={activity.gameName}
+              href={activity.gameHref}
               meta={activity.meta || undefined}
               detail={activity.detail}
               cover={activity.coverUrl ? <ActivityCover src={activity.coverUrl} /> : undefined}
