@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Banner, Button, Modal, Radio, TextArea, Toast } from 'nogasds';
 import { feedMessages as t } from '@/lib/feed/messages';
-import { REPORT_DETAILS_MAX, REPORT_REASONS, type ReportReason } from '@/lib/shelf/screenshot';
+import { REPORT_DETAILS_MAX } from '@/lib/shelf/screenshot';
+import { reportReasonsFor, type ContentReportReason } from '@/lib/feed/report-reasons';
 import { reportAction } from '../report-actions';
 import styles from '../feed.module.css';
 
@@ -18,7 +19,7 @@ const NOTICE_MS = 5000;
  * ("Denúncia enviada" ou "Você já denunciou…") e chama `onClose`.
  */
 export function ReportDialog({ kind, id, onClose }: { kind: ReportKind; id: string; onClose: () => void }) {
-  const [reason, setReason] = useState<ReportReason | ''>('');
+  const [reason, setReason] = useState<ContentReportReason | ''>('');
   const [details, setDetails] = useState('');
   const [errors, setErrors] = useState<Partial<Record<'reason' | 'details' | 'form', string>>>({});
   const [saving, setSaving] = useState(false);
@@ -74,7 +75,7 @@ export function ReportDialog({ kind, id, onClose }: { kind: ReportKind; id: stri
         <p className={styles.hint}>{t.reportQuestion[kind]}</p>
         <fieldset className={styles.reasons} aria-describedby={errors.reason ? 'report-reason-error' : undefined}>
           <legend className={styles.srOnly}>{t.reportReasonLegend}</legend>
-          {REPORT_REASONS.map((value) => (
+          {reportReasonsFor(kind).map((value) => (
             <Radio key={value} name="report-reason" value={value} label={t.reportReasons[value]} checked={reason === value} onChange={() => setReason(value)} />
           ))}
         </fieldset>

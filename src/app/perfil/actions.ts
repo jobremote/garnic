@@ -6,6 +6,8 @@ import { getDb } from '@/lib/db';
 import { isAcceptableImageRef, type ProfileImageKind } from '@/lib/profile/images';
 import { profileMessages } from '@/lib/profile/messages';
 import { updateProfile } from '@/lib/profile/profile';
+import { deleteAccount } from '@/lib/profile/delete-account';
+import { clearSessionCookie } from '@/lib/auth/cookies';
 import { deleteImage, verifyStoredImage } from '@/lib/storage';
 import type { EditProfileState } from './state';
 
@@ -63,4 +65,22 @@ export async function updateProfileAction(_previous: EditProfileState, data: For
   }
   await Promise.all(result.replacedKeys.map(deleteImage));
   redirect(`/perfil/${result.username}`);
+}
+
+export type DeleteAccountResult = { ok: false; error: 'mismatch' | 'failed' };
+
+/**
+ * Exclui a conta de quem está logado, depois de a pessoa digitar o próprio @usuário. Apaga as imagens do armazenamento,
+ * encerra a sessão e vai para a tela de conta excluída.
+ */
+export async function deleteAccountAction(confirmation: unknown): Promise<DeleteAccountResult> {
+  const viewer = await getCurrentUser();
+  if (!viewer) redirect('/entrar');
+  const typed = typeof confirmation === 'string' ? confirmation.trim().replace(/^@/, '').toLowerCase() : '';
+  if (typed !== viewer.username) return { ok: false, error: 'mismatch' };
+  const deleted = await deleteAccount(await getDb(), viewer.id);
+  if (!deleted) return { ok: false, error: 'failed' };
+  await Promise.all(deleted.imageRefs.map((ref) => deleteImage(ref)));
+  await clearSessionCookie();
+  redirect('/conta-excluida');
 }

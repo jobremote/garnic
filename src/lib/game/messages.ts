@@ -14,6 +14,7 @@ export const gameMessages = {
   summaryTranslated: 'Resumo do IGDB, traduzido automaticamente.',
   summaryOriginal: 'Resumo do IGDB, em inglês.',
   noSummary: 'O IGDB ainda não tem um resumo deste jogo.',
+  viewOnIgdb: 'Ver no IGDB',
   community: 'Na comunidade',
   ratingLabel: (count: number) => `Nota média (${count} ${count === 1 ? 'nota' : 'notas'})`,
   ownersLabel: (count: number) => (count === 1 ? 'Tem o jogo' : 'Têm o jogo'),

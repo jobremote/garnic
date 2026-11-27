@@ -1,7 +1,8 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Db } from '@/lib/db/connect';
 import { comments, posts, reports, users } from '@/lib/db/schema';
-import { isReportReason, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
+import { REPORT_DETAILS_MAX } from '@/lib/shelf/screenshot';
+import { isReasonFor, type ContentReportReason } from './report-reasons';
 
 /**
  * Denúncia de post, comentário e usuário (`01_produto/regras-de-negocio/feed.md`, entrega 3). Só registra para revisão:
@@ -40,12 +41,12 @@ export async function reportContent(db: Db, reporterId: string, target: ReportTa
   if (authorId === reporterId) return { ok: false, error: 'own-content' };
 
   const errors: Partial<Record<'reason' | 'details', ReportFieldError>> = {};
-  if (!isReportReason(input.reason)) errors.reason = 'invalid-reason';
+  if (!isReasonFor(target.kind, input.reason)) errors.reason = 'invalid-reason';
   const details = typeof input.details === 'string' ? input.details.replace(/\s+/g, ' ').trim() : '';
   if (details.length > REPORT_DETAILS_MAX) errors.details = 'details-too-long';
   if (Object.keys(errors).length > 0) return { ok: false, error: 'invalid', errors };
 
-  const base = { reporterId, reason: input.reason as ReportReason, details: details === '' ? null : details };
+  const base = { reporterId, reason: input.reason as ContentReportReason, details: details === '' ? null : details };
   const created =
     target.kind === 'post'
       ? await db.insert(reports).values({ ...base, postId: target.id }).onConflictDoNothing({ target: [reports.reporterId, reports.postId] }).returning({ id: reports.id })

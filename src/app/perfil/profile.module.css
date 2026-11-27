@@ -245,3 +245,16 @@
     padding: 0 var(--nds-space-inset-lg);
   }
 }
+
+/* Excluir a conta: no fim da edição do perfil, separado por uma linha (Figma: Perfil / Editar perfil – excluir conta). */
+.dangerZone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nds-space-gap-sm);
+  margin-top: var(--nds-space-gap-lg);
+  padding-top: var(--nds-space-inset-lg);
+  border-top: var(--nds-stroke-default) solid var(--nds-border-subtle);
+}
+.dangerZone > h3 {
+  margin: 0;
+}

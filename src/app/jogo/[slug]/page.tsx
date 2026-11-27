@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { Badge, DataList, DataRow, MediaHero, Stat } from 'nogasds';
+import { Badge, DataList, DataRow, Link, MediaHero, Stat } from 'nogasds';
 import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
 import { FeedList } from '@/app/feed/_components/FeedList';
@@ -47,6 +47,7 @@ async function GamePage({ params }: { params: Promise<{ slug: string }> }) {
   const credits = creditsLine(game.developers, game.publishers);
   const cover = coverUrl(game.coverImageId, 'cover_big', true);
   const summary = game.summaryPt ?? game.summary;
+  const igdbPage = game.slug ? `https://www.igdb.com/games/${encodeURIComponent(game.slug)}` : null;
   const hasIgdbTime = Boolean(game.timeHastily || game.timeNormally || game.timeCompletely);
   const hasTimes = hasIgdbTime || stats.timeAverage !== null;
 
@@ -115,6 +116,14 @@ async function GamePage({ params }: { params: Promise<{ slug: string }> }) {
             ) : (
               <p className={styles.empty}>{t.noSummary}</p>
             )}
+            {/* Caminho até a fonte dos dados, como pede o acordo da Twitch (seção VII.C). */}
+            {igdbPage ? (
+              <p className={styles.source}>
+                <Link href={igdbPage} target="_blank" rel="noopener noreferrer">
+                  {t.viewOnIgdb}
+                </Link>
+              </p>
+            ) : null}
           </section>
 
           <section className={styles.card} aria-labelledby="screenshots">

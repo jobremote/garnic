@@ -109,6 +109,12 @@
   color: var(--nds-link);
 }
 
+.source {
+  margin: 0;
+  font: var(--nds-type-small);
+  letter-spacing: var(--nds-type-small-tracking);
+}
+
 .empty {
   margin: 0;
   font: var(--nds-type-body);
