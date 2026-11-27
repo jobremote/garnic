@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useRef, useState, type ChangeEvent, type FocusEvent } from 'react';
-import { Button, Checkbox, Link, TextField } from 'nogasds';
+import { Button, Checkbox, DateField, Link, TextField } from 'nogasds';
 import { messages } from '@/lib/auth/messages';
 import { checkUsername, validateSignup, type SignupErrors, type SignupField, type SignupInput } from '@/lib/auth/validation';
 import { checkUsernameTakenAction, signupAction } from '../actions';
@@ -11,7 +11,7 @@ import { AuthHeader, OrDivider } from './auth-parts';
 import { GoogleButton } from './GoogleButton';
 import { PasswordField } from './PasswordField';
 
-const FIELDS: readonly SignupField[] = ['name', 'username', 'email', 'password', 'confirmPassword', 'terms'];
+const FIELDS: readonly SignupField[] = ['name', 'username', 'email', 'birthDate', 'password', 'confirmPassword', 'terms'];
 const isField = (name: string): name is SignupField => (FIELDS as readonly string[]).includes(name);
 
 /** Lê os valores atuais do formulário no formato do cadastro. */
@@ -28,6 +28,7 @@ function readInput(form: HTMLFormElement): SignupInput {
     password: text('password'),
     confirmPassword: text('confirmPassword'),
     acceptedTerms: data.get('terms') === 'on',
+    birthDate: text('birthDate'),
   };
 }
 
@@ -36,9 +37,17 @@ function readInput(form: HTMLFormElement): SignupInput {
  * voltam vazias, então qualquer interação com elas conta como mudança.
  */
 function changedSinceServer(field: SignupField, input: SignupInput, values: SignupState['values']): boolean {
-  if (field === 'name' || field === 'username' || field === 'email') return input[field] !== values[field];
+  if (field === 'name' || field === 'username' || field === 'email' || field === 'birthDate') return input[field] !== values[field];
   if (field === 'terms') return input.acceptedTerms !== values.terms;
   return true;
+}
+
+/** A data que voltou do servidor (DD/MM/AAAA), para o campo não ficar vazio depois de um erro. */
+function parseShown(value: string): Date | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  if (!match) return null;
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return date.getDate() === Number(match[1]) ? date : null;
 }
 
 interface Live {
@@ -168,6 +177,14 @@ export function SignupForm() {
         autoComplete="email"
         defaultValue={values.email}
         error={errorOf('email')}
+      />
+      <DateField
+        name="birthDate"
+        label="Data de nascimento"
+        autoComplete="bday"
+        defaultValue={parseShown(values.birthDate)}
+        helpText={messages.signup.birthDateHint}
+        error={errorOf('birthDate')}
       />
       <PasswordField
         name="password"

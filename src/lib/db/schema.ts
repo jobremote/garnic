@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const instant = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -28,6 +28,11 @@ export const users = pgTable(
     /** Enquadramento vertical da capa, de 0 (topo) a 100 (base). 50 = centro. */
     coverPosition: smallint('cover_position').notNull().default(50),
     termsAcceptedAt: instant('terms_accepted_at').notNull(),
+    /**
+     * Data de nascimento ("AAAA-MM-DD"), só para confirmar a idade mínima de 16 anos (ECA Digital, art. 24). Privada:
+     * nunca aparece no perfil. Nulo nas contas criadas antes de 27/11/2026, que informam no próximo acesso.
+     */
+    birthDate: date('birth_date', { mode: 'string' }),
     createdAt: instant('created_at').notNull().defaultNow(),
   },
   (table) => [

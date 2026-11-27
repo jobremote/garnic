@@ -5,7 +5,8 @@ import { dummyPasswordHash, verifyPassword } from './crypto';
 import { recordInitialNames } from '@/lib/profile/history';
 import { messages } from './messages';
 import { isUsernameTaken } from './users';
-import { normalizeEmail, normalizeName, NAME_MAX, usernameError } from './validation';
+import { birthDateError, normalizeEmail, normalizeName, NAME_MAX, usernameError } from './validation';
+import { checkBirthDate } from './birth-date';
 
 /** Entrar e cadastrar com Google (`01_produto/regras-de-negocio/cadastro.md`, seção "Como o Google funciona"). */
 export const GOOGLE = 'google';
@@ -76,7 +77,9 @@ export async function resolveGoogleSignIn(db: Db, profile: GoogleProfile): Promi
 
 export type CompleteGoogleSignupResult =
   | { ok: true; user: User }
-  | { ok: false; errors: { username?: string; terms?: string } }
+  | { ok: false; errors: { username?: string; terms?: string; birthDate?: string } }
+  /** Menos de 16 anos: nada é gravado. */
+  | { ok: false; underAge: true }
   /** Nesse meio-tempo a situação mudou (a conta do Google foi vinculada ou o e-mail ganhou conta). */
   | { ok: false; reason: 'changed'; resolution: GoogleResolution };
 
@@ -84,16 +87,20 @@ export type CompleteGoogleSignupResult =
 export async function completeGoogleSignup(
   db: Db,
   profile: GoogleProfile,
-  input: { username: string; acceptedTerms: boolean },
+  input: { username: string; acceptedTerms: boolean; birthDate: string },
   now = new Date(),
 ): Promise<CompleteGoogleSignupResult> {
   const m = messages.signup;
-  const errors: { username?: string; terms?: string } = {};
+  const birth = checkBirthDate(input.birthDate, now);
+  if (!birth.ok && birth.problem === 'under-age') return { ok: false, underAge: true };
+  const errors: { username?: string; terms?: string; birthDate?: string } = {};
+  const birthError = birthDateError(input.birthDate, now);
+  if (birthError) errors.birthDate = birthError;
   const format = usernameError(input.username);
   if (format) errors.username = format;
   else if (await isUsernameTaken(db, input.username, now)) errors.username = m.usernameTaken;
   if (!input.acceptedTerms) errors.terms = m.termsRequired;
-  if (errors.username || errors.terms) return { ok: false, errors };
+  if (errors.username || errors.terms || errors.birthDate || !birth.ok) return { ok: false, errors };
 
   const resolution = await resolveGoogleSignIn(db, profile);
   if (resolution.kind !== 'signup') return { ok: false, reason: 'changed', resolution };
@@ -107,6 +114,7 @@ export async function completeGoogleSignup(
         username: input.username,
         email: profile.email,
         passwordHash: null,
+        birthDate: birth.birthDate,
         emailVerifiedAt: now,
         termsAcceptedAt: now,
         createdAt: now,

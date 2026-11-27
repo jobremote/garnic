@@ -26,11 +26,17 @@ export async function completeGoogleSignupAction(_previous: GoogleSignupState, d
   if (!profile) redirect('/entrar/erro-google'); // passou dos 10 minutos ou não veio do Google
 
   const username = text(data, 'username');
+  const birthDate = text(data, 'birthDate');
   const terms = data.get('terms') === 'on';
-  const result = await completeGoogleSignup(await getDb(), profile, { username, acceptedTerms: terms });
+  const result = await completeGoogleSignup(await getDb(), profile, { username, acceptedTerms: terms, birthDate });
 
   if (result.ok) return signIn(result.user.id);
-  if ('errors' in result) return { username, terms, errors: result.errors };
+  if ('underAge' in result) {
+    // Menos de 16 anos: nada foi gravado, e o perfil do Google em espera é descartado.
+    await clearGooglePending();
+    redirect('/cadastrar/idade-minima');
+  }
+  if ('errors' in result) return { username, birthDate, terms, errors: result.errors };
   // A situação mudou no meio do caminho (outra aba concluiu, ou o e-mail ganhou conta).
   if (result.resolution.kind === 'login') return signIn(result.resolution.user.id);
   redirect(result.resolution.kind === 'link' ? '/entrar/vincular-google' : '/entrar/erro-google');

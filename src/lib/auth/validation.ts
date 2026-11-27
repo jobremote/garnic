@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { commonPasswords } from './common-passwords';
+import { checkBirthDate } from './birth-date';
 import { messages } from './messages';
 
 /** Regras de cadastro (`01_produto/regras-de-negocio/cadastro.md`). Sem dependência de servidor: também roda no cliente. */
@@ -89,7 +90,7 @@ export function usernameError(username: string): string | undefined {
   }
 }
 
-export type SignupField = 'name' | 'username' | 'email' | 'password' | 'confirmPassword' | 'terms';
+export type SignupField = 'name' | 'username' | 'email' | 'birthDate' | 'password' | 'confirmPassword' | 'terms';
 export type SignupErrors = Partial<Record<SignupField, string>>;
 
 export interface SignupInput {
@@ -99,6 +100,8 @@ export interface SignupInput {
   password: string;
   confirmPassword: string;
   acceptedTerms: boolean;
+  /** Como a pessoa digitou (DD/MM/AAAA). */
+  birthDate: string;
 }
 
 const emailSchema = z.email();
@@ -126,8 +129,20 @@ export function validateSignup(input: SignupInput): SignupErrors {
     errors,
     validateNewPassword(input.password, input.confirmPassword, { username: input.username, email: normalizeEmail(input.email) }),
   );
+  const birth = birthDateError(input.birthDate);
+  if (birth) errors.birthDate = birth;
   if (!input.acceptedTerms) errors.terms = m.termsRequired;
   return errors;
+}
+
+/**
+ * Erro de formato da data de nascimento. Ter menos de 16 anos não é erro de campo: leva à tela da idade mínima
+ * (ver `registerUser` e `completeGoogleSignup`).
+ */
+export function birthDateError(value: string, now = new Date()): string | undefined {
+  const check = checkBirthDate(value, now);
+  if (check.ok || check.problem === 'under-age') return undefined;
+  return check.problem === 'required' ? messages.signup.birthDateRequired : messages.signup.birthDateInvalid;
 }
 
 /** E-mail: obrigatório e com formato válido (até 254 caracteres). */

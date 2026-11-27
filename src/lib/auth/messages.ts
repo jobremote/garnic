@@ -26,6 +26,9 @@ export const messages = {
     passwordHint: 'Mínimo de 8 caracteres, com maiúscula, minúscula, número e caractere especial.',
     confirmMismatch: 'As senhas não são iguais.',
     termsRequired: 'Aceite os termos para continuar.',
+    birthDateRequired: 'Informe sua data de nascimento.',
+    birthDateInvalid: 'Informe uma data válida, no formato dia/mês/ano.',
+    birthDateHint: 'Só para confirmar que você tem 16 anos ou mais. Não aparece no seu perfil.',
   },
   login: {
     badCredentialsTitle: 'E-mail ou senha incorretos',

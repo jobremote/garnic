@@ -33,7 +33,7 @@ const nextProfile = (overrides: Partial<GoogleProfile> = {}): GoogleProfile => {
 async function emailAccount(email: string, verified: boolean) {
   counter += 1;
   const result = await registerUser(db, { ...validSignup, username: `conta${counter}`, email }, T0);
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  if (!result.ok) throw new Error(JSON.stringify(result));
   if (verified) await verifyCode(db, result.user.id, result.code, T0);
   return result.user;
 }
@@ -103,7 +103,7 @@ describe('o que fazer com quem voltou do Google', () => {
 describe('cadastro com Google', () => {
   it('cria a conta: e-mail já validado, sem senha, termos aceitos e Google vinculado', async () => {
     const profile = nextProfile({ name: 'Madonna' });
-    const result = await completeGoogleSignup(db, profile, { username: 'madonna.ciccone', acceptedTerms: true }, T0);
+    const result = await completeGoogleSignup(db, profile, { username: 'madonna.ciccone', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.user).toMatchObject({ name: 'Madonna', username: 'madonna.ciccone', email: profile.email, passwordHash: null });
@@ -118,20 +118,20 @@ describe('cadastro com Google', () => {
 
   it('exige @usuário válido, livre e termos aceitos, com as mensagens do cadastro', async () => {
     const profile = nextProfile();
-    expect(await completeGoogleSignup(db, profile, { username: 'Ana Souza!', acceptedTerms: true }, T0)).toEqual({
+    expect(await completeGoogleSignup(db, profile, { username: 'Ana Souza!', acceptedTerms: true, birthDate: '10/05/1995' }, T0)).toEqual({
       ok: false,
       errors: { username: messages.signup.usernameFormat },
     });
-    expect(await completeGoogleSignup(db, profile, { username: 'admin', acceptedTerms: true }, T0)).toMatchObject({
+    expect(await completeGoogleSignup(db, profile, { username: 'admin', acceptedTerms: true, birthDate: '10/05/1995' }, T0)).toMatchObject({
       errors: { username: messages.signup.usernameReserved },
     });
-    expect(await completeGoogleSignup(db, profile, { username: 'livre.mas.sem.termos', acceptedTerms: false }, T0)).toMatchObject({
+    expect(await completeGoogleSignup(db, profile, { username: 'livre.mas.sem.termos', acceptedTerms: false, birthDate: '10/05/1995' }, T0)).toMatchObject({
       errors: { terms: messages.signup.termsRequired },
     });
     // @usuário já em uso (de outra conta)
     const taken = await emailAccount('dono.do.nome@email.com', true);
     const [row] = await db.select().from(users).where(eq(users.id, taken.id));
-    expect(await completeGoogleSignup(db, profile, { username: row.username, acceptedTerms: true }, T0)).toMatchObject({
+    expect(await completeGoogleSignup(db, profile, { username: row.username, acceptedTerms: true, birthDate: '10/05/1995' }, T0)).toMatchObject({
       errors: { username: messages.signup.usernameTaken },
     });
     // nada foi criado
@@ -140,15 +140,15 @@ describe('cadastro com Google', () => {
 
   it('se a situação mudou no meio do caminho, não cria conta duplicada', async () => {
     const profile = nextProfile();
-    const first = await completeGoogleSignup(db, profile, { username: 'primeira.vez', acceptedTerms: true }, T0);
+    const first = await completeGoogleSignup(db, profile, { username: 'primeira.vez', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     expect(first.ok).toBe(true);
     // a mesma conta do Google tentando criar de novo (por exemplo, duas abas)
-    const second = await completeGoogleSignup(db, profile, { username: 'segunda.vez', acceptedTerms: true }, T0);
+    const second = await completeGoogleSignup(db, profile, { username: 'segunda.vez', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     expect(second).toMatchObject({ ok: false, reason: 'changed', resolution: { kind: 'login' } });
 
     // outro Google com o e-mail de uma conta validada nesse meio-tempo
     const other = await emailAccount('ganhou.conta@email.com', true);
-    const third = await completeGoogleSignup(db, nextProfile({ email: other.email }), { username: 'terceira.vez', acceptedTerms: true }, T0);
+    const third = await completeGoogleSignup(db, nextProfile({ email: other.email }), { username: 'terceira.vez', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     expect(third).toMatchObject({ ok: false, reason: 'changed', resolution: { kind: 'link' } });
   });
 });
@@ -185,7 +185,7 @@ describe('vincular o Google a uma conta existente', () => {
   });
 
   it('uma conta do Google que já é de outro usuário não pode ser vinculada a esta', async () => {
-    const owner = await completeGoogleSignup(db, nextProfile(), { username: 'dona.do.google', acceptedTerms: true }, T0);
+    const owner = await completeGoogleSignup(db, nextProfile(), { username: 'dona.do.google', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     if (!owner.ok) throw new Error('cadastro falhou');
     const ownerLink = (await db.select().from(oauthAccounts).where(eq(oauthAccounts.userId, owner.user.id)))[0];
 
@@ -195,7 +195,7 @@ describe('vincular o Google a uma conta existente', () => {
   });
 
   it('conta só com Google (sem senha) não aceita vínculo por senha', async () => {
-    const google = await completeGoogleSignup(db, nextProfile(), { username: 'so.google', acceptedTerms: true }, T0);
+    const google = await completeGoogleSignup(db, nextProfile(), { username: 'so.google', acceptedTerms: true, birthDate: '10/05/1995' }, T0);
     if (!google.ok) throw new Error('cadastro falhou');
     expect(await linkGoogleAccount(db, nextProfile({ email: google.user.email }), 'Qualquer#Senha1', T0)).toEqual({
       ok: false,

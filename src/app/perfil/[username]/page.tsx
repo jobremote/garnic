@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { getCurrentUser } from '@/lib/auth/current-user';
+import { requireViewer } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { followCounters, isFollowing } from '@/lib/feed/follows';
 import { listPosts } from '@/lib/feed/posts';
@@ -17,8 +17,7 @@ export const metadata: Metadata = { title: 'Perfil' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 async function Profile({ params, searchParams }: { params: Promise<{ username: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect('/entrar');
+  const viewer = await requireViewer();
 
   const { username } = await params;
   // `?editar=<entrada>`: a página do jogo leva direto à edição da entrada (só no próprio perfil).

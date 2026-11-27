@@ -29,7 +29,7 @@ let counter = 0;
 async function setup(status = 'jogando') {
   counter += 1;
   const result = await registerUser(db, { ...validSignup, username: `entrada${counter}`, email: `entrada${counter}@email.com` }, T0);
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  if (!result.ok) throw new Error(JSON.stringify(result));
   await db.update(users).set({ emailVerifiedAt: T0 }).where(eq(users.id, result.user.id));
   const added = await addToShelf(db, result.user.id, game(1000 + counter), status, T0);
   if (!added.ok) throw new Error('falhou');

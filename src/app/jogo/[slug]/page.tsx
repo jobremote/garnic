@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { Badge, DataList, DataRow, MediaHero, Stat } from 'nogasds';
 import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
 import { FeedList } from '@/app/feed/_components/FeedList';
-import { getCurrentUser } from '@/lib/auth/current-user';
+import { requireViewer } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { listPosts } from '@/lib/feed/posts';
 import { toPostView } from '@/lib/feed/view';
@@ -27,8 +27,7 @@ export const metadata: Metadata = { title: 'Jogo' };
  * jogo. Só para quem está logado e só para jogos que já estão no Garnic.
  */
 async function GamePage({ params }: { params: Promise<{ slug: string }> }) {
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect('/entrar');
+  const viewer = await requireViewer();
   const { slug } = await params;
   const db = await getDb();
   const found = await findGame(db, decodeURIComponent(slug));

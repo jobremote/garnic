@@ -25,7 +25,7 @@ let counter = 0;
 async function account(verified = true) {
   counter += 1;
   const result = await registerUser(db, { ...validSignup, username: `jogo${counter}`, email: `jogo${counter}@email.com` }, T0);
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  if (!result.ok) throw new Error(JSON.stringify(result));
   if (verified) await db.update(users).set({ emailVerifiedAt: T0 }).where(eq(users.id, result.user.id));
   return result.user.id;
 }

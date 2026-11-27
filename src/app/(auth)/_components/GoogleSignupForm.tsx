@@ -1,16 +1,16 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { Button, Checkbox, Link, TextField } from 'nogasds';
+import { Button, Checkbox, DateField, Link, TextField } from 'nogasds';
 import { messages } from '@/lib/auth/messages';
-import { usernameError } from '@/lib/auth/validation';
+import { birthDateError, usernameError } from '@/lib/auth/validation';
 import { checkUsernameTakenAction } from '../actions';
 import { completeGoogleSignupAction } from '../google-actions';
 import { initialGoogleSignupState, type GoogleSignupState } from '../state';
 import styles from '../auth.module.css';
 import { AuthHeader } from './auth-parts';
 
-type Field = 'username' | 'terms';
+type Field = 'username' | 'terms' | 'birthDate';
 
 /**
  * Escolher o @usuário depois de entrar com o Google. Nome e e-mail vêm do Google e não se editam aqui.
@@ -20,6 +20,7 @@ export function GoogleSignupForm({ name, email }: { name: string; email: string 
   const [state, formAction, pending] = useActionState(completeGoogleSignupAction, initialGoogleSignupState);
   const [username, setUsername] = useState('');
   const [terms, setTerms] = useState(false);
+  const [birthDate, setBirthDate] = useState('');
   const [taken, setTaken] = useState<{ username: string; taken: boolean } | null>(null);
   // Campos já visitados desde a última resposta do servidor; resposta nova zera (a chave é o `state`).
   const [visited, setVisited] = useState<{ for: GoogleSignupState; fields: Field[] }>({ for: state, fields: [] });
@@ -30,6 +31,7 @@ export function GoogleSignupForm({ name, email }: { name: string; email: string 
   const liveTerms = terms ? undefined : messages.signup.termsRequired;
   const usernameMessage = fields.includes('username') ? liveUsername : state.errors.username;
   const termsMessage = fields.includes('terms') ? liveTerms : state.errors.terms;
+  const birthDateMessage = fields.includes('birthDate') ? birthDateError(birthDate) : state.errors.birthDate;
 
   const checkTaken = async () => {
     if (usernameError(username) || taken?.username === username) return;
@@ -60,6 +62,17 @@ export function GoogleSignupForm({ name, email }: { name: string; email: string 
         }}
         helpText={messages.signup.usernameHint}
         error={usernameMessage}
+      />
+      <DateField
+        name="birthDate"
+        label="Data de nascimento"
+        onInput={(event) => {
+          setBirthDate((event.target as HTMLInputElement).value);
+          if (state.errors.birthDate && !fields.includes('birthDate')) touch('birthDate');
+        }}
+        onBlur={() => touch('birthDate')}
+        helpText={messages.signup.birthDateHint}
+        error={birthDateMessage}
       />
       <Checkbox
         name="terms"

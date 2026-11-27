@@ -24,7 +24,7 @@ async function verifiedAccount(now = T0) {
     { ...validSignup, name: 'Ana Souza', username: `ana${counter}`, email: `ana${counter}@email.com` },
     now,
   );
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  if (!result.ok) throw new Error(JSON.stringify(result));
   await db.update(users).set({ emailVerifiedAt: now }).where(eq(users.id, result.user.id));
   return { id: result.user.id, username: `ana${counter}` };
 }

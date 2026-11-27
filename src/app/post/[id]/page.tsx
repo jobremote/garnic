@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { AppFooter } from '@/app/_components/AppFooter';
 import { AppTopBars } from '@/app/_components/AppTopBars';
-import { getCurrentUser } from '@/lib/auth/current-user';
+import { requireViewer } from '@/lib/auth/current-user';
 import { getDb } from '@/lib/db';
 import { toCommentView } from '@/lib/feed/comment-view';
 import { listComments } from '@/lib/feed/comments';
@@ -20,8 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Página do post: o post inteiro e os comentários dele (curtir, comentar, responder, ocultar). Só para quem está logado. */
 async function PostPage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect('/entrar');
+  const viewer = await requireViewer();
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
