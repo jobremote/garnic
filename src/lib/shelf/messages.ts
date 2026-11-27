@@ -11,6 +11,7 @@ export const STATUS_QUESTION: Record<ShelfStatus, string> = {
 
 export const shelfMessages = {
   addGame: 'Adicionar jogo',
+  viewGamePage: 'Ver página do jogo',
   searchLabel: 'Buscar jogo',
   searchPlaceholder: 'Digite o nome do jogo',
   searchHint: 'Digite pelo menos 2 letras.', // novo

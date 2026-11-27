@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import {
   Banner,
@@ -458,6 +459,11 @@ function GameHeader({ entry }: { entry: EntryView }) {
       <div>
         <p className={styles.gameName}>{entry.gameName}</p>
         {entry.year ? <p className={styles.hint}>{entry.year}</p> : null}
+        {entry.gameHref ? (
+          <Link href={entry.gameHref} className={styles.gameLink}>
+            {t.viewGamePage}
+          </Link>
+        ) : null}
       </div>
     </div>
   );

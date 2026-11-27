@@ -33,7 +33,7 @@ export interface EntryDetails {
   /** Referência da screenshot (uma por entrada, pública) e se ela tem spoiler. */
   screenshotRef: string | null;
   screenshotSpoiler: boolean;
-  game: { id: string; igdbId: number; name: string; releasedAt: Date | null; coverImageId: string | null; platforms: string[] };
+  game: { id: string; igdbId: number; slug: string | null; name: string; releasedAt: Date | null; coverImageId: string | null; platforms: string[] };
 }
 
 export async function getEntry(db: Db, userId: string, entryId: string): Promise<EntryDetails | null> {
@@ -59,7 +59,7 @@ export async function getEntry(db: Db, userId: string, entryId: string): Promise
     started: { month: entry.startedMonth, year: entry.startedYear },
     ended: { month: entry.endedMonth, year: entry.endedYear },
     playMinutes: entry.playMinutes,
-    game: { id: game.id, igdbId: game.igdbId, name: game.name, releasedAt: game.releasedAt, coverImageId: game.coverImageId, platforms: game.platforms },
+    game: { id: game.id, igdbId: game.igdbId, slug: game.slug, name: game.name, releasedAt: game.releasedAt, coverImageId: game.coverImageId, platforms: game.platforms },
   };
 }
 

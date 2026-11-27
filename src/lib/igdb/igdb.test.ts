@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apicalypseString, coverUrl, createIgdbClient, HIDDEN_GAME_TYPES, IgdbError, igdbCredentials, normalizeTitle, rankSearchResults, SEARCH_RESULTS, toIgdbGame, type IgdbGame, type SearchCandidate } from './igdb';
+import { apicalypseString, backdropUrl, coverUrl, createIgdbClient, HIDDEN_GAME_TYPES, IgdbError, igdbCredentials, normalizeTitle, rankSearchResults, SEARCH_RESULTS, toGameDetails, toIgdbGame, type IgdbGame, type SearchCandidate } from './igdb';
 
 const credentials = { clientId: 'id-teste', clientSecret: 'segredo-teste' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -237,5 +237,29 @@ describe('searchGames', () => {
     });
     await Promise.all([client.searchGames('Hades'), client.searchGames('Celeste')]);
     expect(sleeps).toEqual([250]);
+  });
+});
+
+describe('toGameDetails', () => {
+  it('separa desenvolvedora e publicadora e prefere uma arte larga para o fundo', () => {
+    const details = toGameDetails({
+      summary: '  A tight platformer.  ',
+      genres: [{ name: 'Platform' }, { name: 'Indie' }, { name: 'Platform' }],
+      involved_companies: [
+        { developer: true, publisher: false, company: { name: 'Extremely OK Games' } },
+        { developer: false, publisher: true, company: { name: 'Maddy Makes Games' } },
+        { developer: false, publisher: false, company: { name: 'Sickhead Games' } },
+      ],
+      artworks: [{ image_id: 'artalta', width: 600, height: 800 }, { image_id: 'artlarga', width: 1920, height: 1080 }],
+      screenshots: [{ image_id: 'sc1' }],
+    });
+    expect(details).toEqual({ summary: 'A tight platformer.', genres: ['Platform', 'Indie'], developers: ['Extremely OK Games'], publishers: ['Maddy Makes Games'], backdropImageId: 'artlarga' });
+  });
+
+  it('sem arte usa uma screenshot; sem nada, tudo vazio', () => {
+    expect(toGameDetails({ screenshots: [{ image_id: 'sc1' }] }).backdropImageId).toBe('sc1');
+    expect(toGameDetails({})).toEqual({ summary: null, genres: [], developers: [], publishers: [], backdropImageId: null });
+    expect(backdropUrl('ar1')).toBe('https://images.igdb.com/igdb/image/upload/t_1080p/ar1.jpg');
+    expect(backdropUrl('../x')).toBeUndefined();
   });
 });

@@ -165,9 +165,27 @@ export const games = pgTable(
     releasedAt: instant('released_at'),
     /** Nomes das plataformas em que o jogo saiu. */
     platforms: text('platforms').array().notNull().default([]),
+    /**
+     * Detalhes da página do jogo (entrega 4), buscados no IGDB na primeira visita e renovados de tempos em tempos
+     * (`detailsFetchedAt`). Nulo em `detailsFetchedAt`: ainda não buscados.
+     */
+    summary: text('summary'),
+    /** Resumo traduzido para o português (DeepL). Nulo: ainda não traduzido (a página mostra o original). */
+    summaryPt: text('summary_pt'),
+    /** Gêneros, como vêm do IGDB (em inglês, decisão de 27/11/2026). */
+    genres: text('genres').array().notNull().default([]),
+    developers: text('developers').array().notNull().default([]),
+    publishers: text('publishers').array().notNull().default([]),
+    /** Imagem de fundo do cabeçalho: uma arte oficial do IGDB ou, sem arte, uma screenshot oficial. */
+    backdropImageId: text('backdrop_image_id'),
+    /** Estimativas de tempo do IGDB, em minutos (cada uma pode faltar). */
+    timeHastily: integer('time_hastily'),
+    timeNormally: integer('time_normally'),
+    timeCompletely: integer('time_completely'),
+    detailsFetchedAt: instant('details_fetched_at'),
     createdAt: instant('created_at').notNull().defaultNow(),
   },
-  (table) => [uniqueIndex('games_igdb_id_key').on(table.igdbId)],
+  (table) => [uniqueIndex('games_igdb_id_key').on(table.igdbId), index('games_slug_idx').on(table.slug)],
 );
 
 /**

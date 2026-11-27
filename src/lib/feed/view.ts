@@ -1,3 +1,4 @@
+import { gamePath } from '@/lib/game/path';
 import { coverUrl } from '@/lib/igdb/igdb';
 import { mediaUrl } from '@/lib/profile/images';
 import type { ShelfStatus } from '@/lib/shelf/status';
@@ -18,7 +19,7 @@ export interface PostView {
   imageUrl?: string;
   spoiler: boolean;
   /** Jogos marcados, na ordem em que foram escolhidos. `status` é o do jogo no Game Shelf de quem postou (só quando está lá). */
-  games: { igdbId: number; name: string; coverUrl?: string; status?: ShelfStatus }[];
+  games: { igdbId: number; name: string; coverUrl?: string; status?: ShelfStatus; /** Página do jogo. */ href?: string }[];
   /** É de quem está vendo: libera editar e excluir. */
   own: boolean;
   likeCount: number;
@@ -34,6 +35,8 @@ export interface PostView {
 export interface ActivityView {
   phrase: string;
   gameName: string;
+  /** Página do jogo. */
+  gameHref?: string;
   coverUrl?: string;
   /** "2022 · PC (Windows)". */
   meta: string;
@@ -71,6 +74,7 @@ function toActivityView(activity: PostActivity): ActivityView {
   return {
     phrase: m.activityPhrase[activity.kind],
     gameName: activity.game.name,
+    gameHref: gamePath(activity.game),
     coverUrl: coverUrl(activity.game.coverImageId, 'cover_small'),
     meta: [year, activity.platform].filter(Boolean).join(' · '),
     detail: parts.length > 0 ? parts.join(' · ') : undefined,
@@ -95,6 +99,7 @@ export function toPostView(post: FeedPost, viewerId: string, now: Date): PostVie
     spoiler: post.spoiler,
     games: post.games.map((game) => ({
       igdbId: game.igdbId,
+      href: gamePath(game),
       name: game.name,
       coverUrl: coverUrl(game.coverImageId, 'cover_small'),
       status: game.status ?? undefined,

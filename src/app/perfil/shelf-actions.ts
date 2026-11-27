@@ -14,6 +14,7 @@ import { entryErrorMessages, tagErrorMessages } from '@/lib/shelf/messages';
 import { getPublicEntry, reportScreenshot, REPORT_DETAILS_MAX, type ReportReason } from '@/lib/shelf/screenshot';
 import { createTag, deleteTag, MAX_TAGS_PER_USER, TAG_NAME_MAX, updateTag, type TagColor, type TagErrorCode, type TagResult } from '@/lib/shelf/tags';
 import { parseEntryInput } from '@/lib/shelf/parse';
+import { gamePath } from '@/lib/game/path';
 import type { ActivityOffer } from '@/lib/shelf/activity';
 import { addManyToShelf, addToShelf, moveEntry, placeEntry, QUICK_ADD_MAX, statusByIgdbId } from '@/lib/shelf/shelf';
 import { isShelfStatus, type ShelfStatus } from '@/lib/shelf/status';
@@ -171,6 +172,8 @@ export interface EntryView {
   screenshotUrl?: string;
   screenshotSpoiler: boolean;
   gameName: string;
+  /** Página do jogo. */
+  gameHref?: string;
   year: string;
   coverUrl?: string;
   platforms: string[];
@@ -210,6 +213,7 @@ export async function openEntryAction(entryId: string): Promise<OpenEntryResult>
       screenshotUrl: mediaUrl(entry.screenshotRef),
       screenshotSpoiler: entry.screenshotSpoiler,
       gameName: entry.game.name,
+      gameHref: gamePath(entry.game),
       year: entry.game.releasedAt ? String(entry.game.releasedAt.getUTCFullYear()) : '',
       coverUrl: coverUrl(entry.game.coverImageId, 'cover_small'),
       platforms: entry.game.platforms,
@@ -332,6 +336,8 @@ export interface PublicEntryView {
   entryId: string;
   own: boolean;
   gameName: string;
+  /** Página do jogo. */
+  gameHref?: string;
   year: string;
   coverUrl?: string;
   status: ShelfStatus;
@@ -361,6 +367,7 @@ export async function viewEntryAction(entryId: string): Promise<ViewEntryResult>
       entryId: entry.entryId,
       own: entry.ownerId === user.id,
       gameName: entry.game.name,
+      gameHref: gamePath(entry.game),
       year: entry.game.releasedAt ? String(entry.game.releasedAt.getUTCFullYear()) : '',
       coverUrl: coverUrl(entry.game.coverImageId, 'cover_small'),
       status: entry.status,

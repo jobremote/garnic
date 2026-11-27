@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge, Banner, Button, Modal, Rating, Select, SpoilerGuard, TextArea, type BadgeTone } from 'nogasds';
 import { MONTH_NAMES } from 'nogasds';
@@ -94,6 +95,11 @@ export function EntryViewModal({ entryId, onClose, onEdit, onReported }: EntryVi
           <div>
             <p className={styles.gameName}>{entry.gameName}</p>
             <p className={styles.hint}>{entry.year}</p>
+            {entry.gameHref ? (
+              <Link href={entry.gameHref} className={styles.gameLink}>
+                {t.viewGamePage}
+              </Link>
+            ) : null}
           </div>
           <Badge tone={STATUS_TONE[entry.status]}>{STATUS_LABEL[entry.status]}</Badge>
         </div>
@@ -152,7 +158,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** Denúncia de screenshot: motivo e detalhes opcionais. Só registra para revisão. */
-function ReportModal({ entryId, onCancel, onDone }: { entryId: string; onCancel: () => void; onDone: (alreadyReported: boolean) => void }) {
+export function ReportModal({ entryId, onCancel, onDone }: { entryId: string; onCancel: () => void; onDone: (alreadyReported: boolean) => void }) {
   const [reason, setReason] = useState<ReportReason | ''>('');
   const [details, setDetails] = useState('');
   const [errors, setErrors] = useState<Partial<Record<'reason' | 'details' | 'form', string>>>({});

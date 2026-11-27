@@ -70,7 +70,7 @@ describe('criar, editar e excluir post', () => {
     expect(result.ok).toBe(true);
     const [post] = (await listPosts(db, { kind: 'user', userId })).posts;
     expect(post).toMatchObject({ body: '', imageRef: 'posts/a.jpg', spoiler: true });
-    expect(post.games).toEqual([{ igdbId: 10, name: 'Celeste', coverImageId: 'co10', status: null }]);
+    expect(post.games).toEqual([{ igdbId: 10, slug: 'jogo-10', name: 'Celeste', coverImageId: 'co10', status: null }]);
   });
 
   it('marca vários jogos, guarda a ordem escolhida e conta repetidos uma vez só', async () => {
