@@ -9,6 +9,7 @@ const valid: SignupInput = {
   password: 'Zk9#mPq2vL',
   confirmPassword: 'Zk9#mPq2vL',
   acceptedTerms: true,
+  birthDate: '10/05/1995',
 };
 
 describe('@usuário', () => {
@@ -105,6 +106,7 @@ describe('cadastro', () => {
       password: 'abc123',
       confirmPassword: 'abc12',
       acceptedTerms: false,
+      birthDate: '10/05/1995',
     });
     expect(errors).toEqual({
       username: messages.signup.usernameFormat,

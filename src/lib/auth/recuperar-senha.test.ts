@@ -34,7 +34,7 @@ async function verifiedAccount(overrides: Partial<typeof validSignup> = {}) {
   counter += 1;
   const input = { ...validSignup, username: `recupera${counter}`, email: `recupera${counter}@email.com`, ...overrides };
   const result = await registerUser(db, input, T0);
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  if (!result.ok) throw new Error(JSON.stringify(result));
   await verifyCode(db, result.user.id, result.code, T0);
   return { ...result.user, username: input.username };
 }

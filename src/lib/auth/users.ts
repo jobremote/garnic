@@ -3,6 +3,7 @@ import type { Db } from '@/lib/db/connect';
 import { users, type User } from '@/lib/db/schema';
 import { dummyPasswordHash, hashPassword, verifyPassword } from './crypto';
 import { recordInitialNames } from '@/lib/profile/history';
+import { checkBirthDate } from './birth-date';
 import { messages } from './messages';
 import { normalizeEmail, normalizeName, validateSignup, type SignupErrors, type SignupInput } from './validation';
 import { issueCode } from './verification';
@@ -26,10 +27,15 @@ export async function purgeUnverifiedUsers(db: Db, now = new Date()): Promise<nu
 
 export type RegisterResult =
   | { ok: true; user: Pick<User, 'id' | 'name' | 'email'>; code: string; resendAvailableAt: Date }
-  | { ok: false; errors: SignupErrors };
+  | { ok: false; errors: SignupErrors }
+  /** Menos de 16 anos: nada é gravado (a tela explica a idade mínima). */
+  | { ok: false; underAge: true };
 
 /** Cria a conta (ainda não validada) e o primeiro código. O envio do e-mail é feito por quem chama. */
 export async function registerUser(db: Db, input: SignupInput, now = new Date()): Promise<RegisterResult> {
+  // Menos de 16 anos: para aqui, antes de qualquer outra conferência, sem gravar nada.
+  const birth = checkBirthDate(input.birthDate, now);
+  if (!birth.ok && birth.problem === 'under-age') return { ok: false, underAge: true };
   const errors = validateSignup(input);
   const email = normalizeEmail(input.email);
   const username = input.username;
@@ -50,7 +56,7 @@ export async function registerUser(db: Db, input: SignupInput, now = new Date())
   try {
     [created] = await db
       .insert(users)
-      .values({ name: normalizeName(input.name), username, email, passwordHash, termsAcceptedAt: now, createdAt: now })
+      .values({ name: normalizeName(input.name), username, email, passwordHash, birthDate: birth.ok ? birth.birthDate : null, termsAcceptedAt: now, createdAt: now })
       .returning({ id: users.id, name: users.name, email: users.email });
   } catch (error) {
     // Duas pessoas cadastrando o mesmo dado ao mesmo tempo: o índice único decide.

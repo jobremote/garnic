@@ -4,12 +4,12 @@ import type { SignupErrors } from '@/lib/auth/validation';
 
 export interface SignupState {
   /** Campos de texto devolvidos para o formulário não ficar vazio depois de um erro. Senhas nunca voltam. */
-  values: { name: string; username: string; email: string; terms: boolean };
+  values: { name: string; username: string; email: string; birthDate: string; terms: boolean };
   errors: SignupErrors;
 }
 
 export const initialSignupState: SignupState = {
-  values: { name: '', username: '', email: '', terms: false },
+  values: { name: '', username: '', email: '', birthDate: '', terms: false },
   errors: {},
 };
 
@@ -25,11 +25,12 @@ export const initialLoginState: LoginState = { email: '', failed: false, errors:
 export interface GoogleSignupState {
   /** Devolvido para o campo não ficar vazio depois de um erro. */
   username: string;
+  birthDate: string;
   terms: boolean;
-  errors: { username?: string; terms?: string };
+  errors: { username?: string; terms?: string; birthDate?: string };
 }
 
-export const initialGoogleSignupState: GoogleSignupState = { username: '', terms: false, errors: {} };
+export const initialGoogleSignupState: GoogleSignupState = { username: '', birthDate: '', terms: false, errors: {} };
 
 export interface LinkGoogleState {
   /** Senha da conta incorreta (banner). */

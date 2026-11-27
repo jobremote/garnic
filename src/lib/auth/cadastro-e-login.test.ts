@@ -28,7 +28,7 @@ async function newAccount(now = T0, overrides: Partial<typeof validSignup> = {})
     { ...validSignup, username: `usuario${counter}`, email: `usuario${counter}@email.com`, ...overrides },
     now,
   );
-  if (!result.ok) throw new Error(`cadastro falhou: ${JSON.stringify(result.errors)}`);
+  if (!result.ok) throw new Error(`cadastro falhou: ${JSON.stringify(result)}`);
   return result;
 }
 
@@ -72,7 +72,7 @@ describe('cadastro por e-mail', () => {
   it('recusa dados inválidos sem criar nada', async () => {
     const result = await registerUser(db, { ...validSignup, username: 'Ana!', email: 'ana@email', acceptedTerms: false }, T0);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(Object.keys(result.errors).sort()).toEqual(['email', 'terms', 'username']);
+    if (!result.ok && 'errors' in result) expect(Object.keys(result.errors).sort()).toEqual(['email', 'terms', 'username']);
     expect(await db.select().from(users).where(eq(users.username, 'Ana!'))).toHaveLength(0);
   });
 

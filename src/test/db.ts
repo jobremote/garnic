@@ -14,4 +14,5 @@ export const validSignup = {
   password: 'Zk9#mPq2vL',
   confirmPassword: 'Zk9#mPq2vL',
   acceptedTerms: true,
+  birthDate: '10/05/1995',
 };

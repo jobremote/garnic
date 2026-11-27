@@ -33,10 +33,11 @@ describe('PasswordField', () => {
 describe('SignupForm', () => {
   it('traz todos os campos do protótipo, com os textos de ajuda', () => {
     render(<SignupForm />);
-    for (const label of ['Nome completo', '@usuário', 'E-mail', 'Senha', 'Repetir senha']) {
+    for (const label of ['Nome completo', '@usuário', 'E-mail', 'Data de nascimento', 'Senha', 'Repetir senha']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.getByLabelText('@usuário')).toHaveAccessibleDescription(messages.signup.usernameHint);
+    expect(screen.getByLabelText('Data de nascimento')).toHaveAccessibleDescription(messages.signup.birthDateHint);
     expect(screen.getByLabelText('Senha')).toHaveAccessibleDescription(messages.signup.passwordHint);
     expect(screen.getByRole('link', { name: 'Termos de uso' })).toHaveAttribute('href', '/termos');
     expect(screen.getByRole('link', { name: 'Política de Privacidade' })).toHaveAttribute('href', '/privacidade');
@@ -51,7 +52,7 @@ describe('SignupForm', () => {
   it('mostra o erro de cada campo devolvido pelo servidor e mantém o que foi digitado', async () => {
     const user = userEvent.setup();
     actions.signupAction.mockResolvedValueOnce({
-      values: { name: 'Ana Souza', username: 'Ana Souza!', email: 'ana@email', terms: false },
+      values: { name: 'Ana Souza', username: 'Ana Souza!', email: 'ana@email', birthDate: '', terms: false },
       errors: {
         username: messages.signup.usernameFormat,
         email: messages.signup.emailInvalid,
@@ -77,7 +78,7 @@ describe('SignupForm', () => {
 
   it('envia o termo marcado como "on" para o servidor', async () => {
     const user = userEvent.setup();
-    actions.signupAction.mockResolvedValueOnce({ values: { name: '', username: '', email: '', terms: true }, errors: {} });
+    actions.signupAction.mockResolvedValueOnce({ values: { name: '', username: '', email: '', birthDate: '', terms: true }, errors: {} });
     render(<SignupForm />);
     await user.click(screen.getByLabelText(/Li e aceito/));
     await user.click(screen.getByRole('button', { name: 'Criar conta' }));
@@ -225,7 +226,7 @@ describe('SignupForm: erros ao sair do campo', () => {
   it('erro devolvido pelo servidor continua até a pessoa corrigir o campo', async () => {
     const user = userEvent.setup();
     actions.signupAction.mockResolvedValueOnce({
-      values: { name: 'Ana Souza', username: 'ana.souza', email: 'ana@email.com', terms: true },
+      values: { name: 'Ana Souza', username: 'ana.souza', email: 'ana@email.com', birthDate: '10/05/1995', terms: true },
       errors: { email: messages.signup.emailTaken },
     });
     render(<SignupForm />);

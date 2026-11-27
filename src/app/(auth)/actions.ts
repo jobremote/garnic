@@ -3,11 +3,14 @@
 import { redirect } from 'next/navigation';
 import { clearPendingCookie, clearSessionCookie, readPendingUserId, readSessionToken, setPendingCookie, setSessionCookie } from '@/lib/auth/cookies';
 import { messages } from '@/lib/auth/messages';
-import { createSession, deleteSession } from '@/lib/auth/sessions';
+import { createSession, deleteSession, getSessionUser } from '@/lib/auth/sessions';
+import { checkBirthDate } from '@/lib/auth/birth-date';
 import { authenticate, findUserById, isSignupExpired, isUsernameTaken, purgeUnverifiedUsers, registerUser } from '@/lib/auth/users';
-import { checkUsername } from '@/lib/auth/validation';
+import { birthDateError, checkUsername } from '@/lib/auth/validation';
 import { issueCode, verifyCode } from '@/lib/auth/verification';
 import { getDb } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { sendEmail } from '@/lib/email/mailer';
 import { verificationEmail } from '@/lib/email/templates';
 import type { LoginState, SignupState, VerifyState } from './state';
@@ -27,13 +30,16 @@ export async function signupAction(_previous: SignupState, data: FormData): Prom
     password: text(data, 'password'),
     confirmPassword: text(data, 'confirmPassword'),
     acceptedTerms: data.get('terms') === 'on',
+    birthDate: text(data, 'birthDate'),
   };
 
   const db = await getDb();
   const result = await registerUser(db, input);
+  // Menos de 16 anos: nada foi gravado; a tela explica a idade mínima.
+  if (!result.ok && 'underAge' in result) redirect('/cadastrar/idade-minima');
   if (!result.ok) {
     return {
-      values: { name: input.name, username: input.username, email: input.email, terms: input.acceptedTerms },
+      values: { name: input.name, username: input.username, email: input.email, birthDate: input.birthDate, terms: input.acceptedTerms },
       errors: result.errors,
     };
   }
@@ -121,4 +127,30 @@ export async function logoutAction(): Promise<void> {
   if (token) await deleteSession(await getDb(), token);
   await clearSessionCookie();
   redirect('/entrar');
+}
+
+export interface BirthDateState {
+  birthDate: string;
+  error?: string;
+}
+
+/**
+ * Conta criada antes da idade mínima informa a data de nascimento. Com menos de 16 anos, a data não é gravada, a
+ * sessão é encerrada e a tela da idade mínima explica o motivo.
+ */
+export async function saveBirthDateAction(_previous: BirthDateState, data: FormData): Promise<BirthDateState> {
+  const token = await readSessionToken();
+  const db = await getDb();
+  const user = token ? await getSessionUser(db, token) : null;
+  if (!token || !user) redirect('/entrar');
+  const birthDate = text(data, 'birthDate');
+  const check = checkBirthDate(birthDate);
+  if (!check.ok && check.problem === 'under-age') {
+    await deleteSession(db, token);
+    await clearSessionCookie();
+    redirect('/cadastrar/idade-minima');
+  }
+  if (!check.ok) return { birthDate, error: birthDateError(birthDate) };
+  await db.update(users).set({ birthDate: check.birthDate }).where(eq(users.id, user.id));
+  redirect('/');
 }
