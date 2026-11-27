@@ -6,7 +6,7 @@ import { messages } from '@/lib/auth/messages';
 import { checkName, usernameError } from '@/lib/auth/validation';
 import { IMAGE_ACCEPT, IMAGE_MAX_BYTES, type ProfileImageKind as ImageKind } from '@/lib/profile/images';
 import { profileMessages } from '@/lib/profile/messages';
-import { updateProfileAction } from '../actions';
+import { deleteAccountAction, updateProfileAction } from '../actions';
 import { initialEditProfileState, type EditProfileState } from '../state';
 import styles from '../profile.module.css';
 import { uploadImage, type UploadMode } from './upload-image';
@@ -96,6 +96,7 @@ function EditForm({
   const [fileErrors, setFileErrors] = useState<Partial<Record<ImageKind, string>>>({});
   const [liveErrors, setLiveErrors] = useState<{ name?: string; username?: string }>({});
   const [confirming, setConfirming] = useState<Confirming>(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const avatarInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
 
@@ -351,6 +352,17 @@ function EditForm({
             error={bioTooLong ? profileMessages.bioTooLong(bioCount) : errors.bio}
           />
         </form>
+        <section className={styles.dangerZone} aria-labelledby="excluir-conta">
+          <h3 id="excluir-conta" className={styles.groupLabel}>
+            {profileMessages.deleteAccount}
+          </h3>
+          <p className={styles.hint}>{profileMessages.deleteAccountHint}</p>
+          <div>
+            <Button type="button" variant="danger-ghost" size="sm" onClick={() => setDeletingAccount(true)}>
+              {profileMessages.deleteAccountButton}
+            </Button>
+          </div>
+        </section>
       </Modal>
 
       <Modal
@@ -368,6 +380,54 @@ function EditForm({
       >
         <p className={styles.confirmText}>{confirming === 'cover' ? profileMessages.removeCoverText : profileMessages.removePhotoText}</p>
       </Modal>
+      {deletingAccount ? <DeleteAccountModal onClose={() => setDeletingAccount(false)} /> : null}
     </>
+  );
+}
+
+/** Confirmação da exclusão da conta: a pessoa digita o próprio @usuário (Figma: Perfil / Excluir conta – confirmação). */
+function DeleteAccountModal({ onClose }: { onClose: () => void }) {
+  const [typed, setTyped] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirm() {
+    setDeleting(true);
+    setError(null);
+    // Em caso de sucesso, a ação encerra a sessão e leva à tela de conta excluída.
+    const result = await deleteAccountAction(typed);
+    setDeleting(false);
+    setError(result.error === 'mismatch' ? profileMessages.deleteAccountMismatch : profileMessages.deleteAccountFailed);
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={profileMessages.deleteAccountTitle}
+      closeLabel="Fechar"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={deleting}>
+            {profileMessages.cancel}
+          </Button>
+          <Button variant="danger" onClick={() => void confirm()} disabled={deleting || typed.trim() === ''}>
+            {deleting ? profileMessages.deleting : profileMessages.deleteAccountConfirm}
+          </Button>
+        </>
+      }
+    >
+      <p className={styles.confirmText}>{profileMessages.deleteAccountText}</p>
+      <TextField
+        label={profileMessages.deleteAccountLabel}
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        autoComplete="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        helpText={profileMessages.deleteAccountHelp}
+        error={error ?? undefined}
+      />
+    </Modal>
   );
 }

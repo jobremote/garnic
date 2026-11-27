@@ -41,6 +41,17 @@ export const profileMessages = {
   removePhotoTitle: 'Remover foto?',
   removePhotoText: 'Seu avatar volta ao padrão, com a inicial do seu nome. Você pode enviar uma nova foto quando quiser.',
   remove: 'Remover',
+  deleteAccount: 'Excluir conta',
+  deleteAccountHint: 'Apaga para sempre seu perfil, seu Game Shelf, seus posts, comentários e curtidas. Não dá para desfazer.',
+  deleteAccountButton: 'Excluir minha conta',
+  deleteAccountTitle: 'Excluir sua conta?',
+  deleteAccountText: 'Isso apaga para sempre seu perfil, seu Game Shelf, seus posts, comentários, curtidas, quem você segue e as imagens que você enviou. Respostas de outras pessoas aos seus comentários também somem. Não dá para desfazer.',
+  deleteAccountLabel: 'Para confirmar, digite seu @usuário',
+  deleteAccountHelp: 'Você vai sair do Garnic logo depois.',
+  deleteAccountMismatch: 'O @usuário não confere. Digite exatamente o seu.',
+  deleteAccountFailed: 'Não foi possível excluir a conta. Tente de novo.',
+  deleteAccountConfirm: 'Excluir conta',
+  deleting: 'Excluindo...',
   imageType: 'Use uma imagem JPG, PNG ou WebP.', // novo
   avatarTooBig: `A foto pode ter até ${mb(IMAGE_MAX_BYTES.avatar)}.`, // novo
   coverTooBig: `A capa pode ter até ${mb(IMAGE_MAX_BYTES.cover)}.`, // novo

@@ -130,7 +130,7 @@ export const feedMessages = {
     user: 'Por que você quer denunciar este perfil, incluindo foto e capa? A denúncia é anônima e será analisada.',
   }, // novo
   reportReasonLegend: 'Motivo', // novo
-  reportReasons: { inappropriate: 'Conteúdo inadequado', spam: 'Spam', spoiler: 'Spoiler sem aviso', other: 'Outro motivo' }, // novo
+  reportReasons: { inappropriate: 'Conteúdo inadequado', spam: 'Spam', spoiler: 'Spoiler sem aviso', underage: 'Parece ter menos de 16 anos', other: 'Outro motivo' }, // novo
   reportDetails: 'Detalhes (opcional)', // novo
   reportDetailsPlaceholder: 'Conte o que aconteceu', // novo
   reportSend: 'Enviar denúncia', // novo

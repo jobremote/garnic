@@ -70,6 +70,13 @@ describe('denunciar post, comentário e usuário', () => {
     expect(await reportContent(db, author, { kind: 'user', id: author }, { reason: 'spam' })).toEqual({ ok: false, error: 'own-content' });
   });
 
+  it('"parece ter menos de 16 anos" vale só para denunciar usuário', async () => {
+    const { author, reporter, postId } = await setup();
+    expect(await reportContent(db, reporter, { kind: 'user', id: author }, { reason: 'underage' })).toEqual({ ok: true, alreadyReported: false });
+    const post = await reportContent(db, reporter, { kind: 'post', id: postId }, { reason: 'underage' });
+    expect(post).toMatchObject({ ok: false, error: 'invalid', errors: { reason: 'invalid-reason' } });
+  });
+
   it('exige motivo válido e limita os detalhes a 500 caracteres', async () => {
     const { reporter, postId } = await setup();
     expect(await reportContent(db, reporter, { kind: 'post', id: postId }, { reason: 'xyz' })).toEqual({ ok: false, error: 'invalid', errors: { reason: 'invalid-reason' } });
