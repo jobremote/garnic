@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { getMentionOptionId, MentionList, type MentionItem } from 'nogasds';
 import { feedMessages as t } from '@/lib/feed/messages';
 import { findMentionTrigger, insertMention } from '@/lib/feed/mentions';
@@ -22,6 +22,8 @@ export function useMentions(api: PostDraftApi) {
   // O campo de texto vem por uma ref de função (estado), para a tela poder ler o resto sem tocar em ref durante a renderização.
   const [field, setField] = useState<HTMLTextAreaElement | null>(null);
   const caretRef = useRef(draft.body.length);
+  /** Posição do cursor a aplicar depois que o "@Nome" entrar no campo. */
+  const pendingCaret = useRef<number | null>(null);
   const [caret, setCaret] = useState(draft.body.length);
   const [activeState, setActiveState] = useState({ key: '', index: 0 });
   const [dismissed, setDismissed] = useState<number | null>(null);
@@ -73,14 +75,18 @@ export function useMentions(api: PostDraftApi) {
     setDismissed(null);
     caretRef.current = next.caret;
     setCaret(next.caret);
-    requestAnimationFrame(() => {
-      if (!field) return;
-      field.focus();
-      field.setSelectionRange(next.caret, next.caret);
-      caretRef.current = next.caret;
-      setCaret(next.caret);
-    });
+    pendingCaret.current = next.caret;
   }
+
+  // O cursor vai para depois do "@Nome" logo que o texto novo entra no campo, antes de qualquer outra tecla. (Antes era
+  // no quadro seguinte da tela: o que se digitava nesse intervalo ficava antes do cursor reposicionado, fora de ordem.)
+  useLayoutEffect(() => {
+    const position = pendingCaret.current;
+    if (position === null || !field || field.value !== draft.body) return;
+    pendingCaret.current = null;
+    field.focus();
+    field.setSelectionRange(position, position);
+  }, [draft.body, field]);
 
   function choose(result: GameResult) {
     if (!trigger) return;

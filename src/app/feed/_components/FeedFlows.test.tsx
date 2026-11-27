@@ -253,6 +253,29 @@ describe('criar post', () => {
     expect(actions.createPostAction).toHaveBeenCalledWith({ body: 'Zerei o @Celeste Classic e adorei', imageRef: null, spoiler: false, igdbIds: [8] });
   });
 
+  it('escolher no meio do texto põe o cursor logo depois do "@Nome", e o que se digita em seguida fica em ordem', async () => {
+    const user = userEvent.setup();
+    shelfActions.searchGamesAction.mockResolvedValue({ ok: true, results: [{ igdbId: 7, name: 'Celeste', detail: '2018 · PC' }] });
+    render(composer());
+    const field = screen.getByRole('textbox', { name: 'Escrever um post' }) as HTMLTextAreaElement;
+    await user.type(field, 'Zerei  ontem');
+    // Cursor entre os dois espaços, e o "@" digitado ali.
+    await user.type(field, '@cel', { initialSelectionStart: 6, initialSelectionEnd: 6 });
+    await screen.findByRole('listbox', { name: 'Sugestões de jogos' }, { timeout: 3000 });
+    // Quadro da tela lento (como numa máquina carregada): nada do cursor pode depender dele.
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => window.setTimeout(() => callback(performance.now()), 50));
+    await user.keyboard('{Enter}');
+    // Já havia espaço depois: o nome entra sem outro espaço, e o cursor fica logo depois dele.
+    expect(field).toHaveValue('Zerei @Celeste ontem');
+    expect(field.selectionStart).toBe('Zerei @Celeste'.length);
+    // Sem esperar nada: as teclas seguintes entram no cursor, não depois de um reposicionamento atrasado.
+    await user.keyboard(' de novo');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(field).toHaveValue('Zerei @Celeste de novo ontem');
+    expect(field.selectionStart).toBe('Zerei @Celeste de novo'.length);
+    frame.mockRestore();
+  });
+
   it('Esc fecha a lista sem marcar nada; apagar o "@Nome" do texto tira o jogo da lista', async () => {
     const user = userEvent.setup();
     shelfActions.searchGamesAction.mockResolvedValue({ ok: true, results: [{ igdbId: 7, name: 'Celeste', detail: '2018 · PC' }] });
